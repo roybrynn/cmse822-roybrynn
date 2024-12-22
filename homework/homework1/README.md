@@ -11,3 +11,5 @@ Watch this short (10 minute) video on [memory hierarchies](https://www.youtube.c
 ## Exercises
 
 Complete exercises 1.1 and 1.5 from [HPSC](../assets/EijkhoutIntroToHPC2020.pdf).
+
+The Intel VTune tutorial: https://www.intel.com/content/www/us/en/docs/vtune-profiler/tutorial-common-bottlenecks-linux/2025-0/overview.html
