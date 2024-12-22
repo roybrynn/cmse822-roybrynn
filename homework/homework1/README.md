@@ -4,6 +4,8 @@
 
 Read sections 1.1-1.3 of [High-Performance Scientific Computing](../assets/EijkhoutIntroToHPC2020.pdf).
 
+The Syllabus and Coding Standards. Post a question, or upvote, in the Slack. 
+
 ## Video Lecture 
 
 Watch this short (10 minute) video on [memory hierarchies](https://www.youtube.com/watch?v=_kZY4orPQW0).
