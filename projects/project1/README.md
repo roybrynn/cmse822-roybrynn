@@ -8,11 +8,11 @@ In this Quest, you will join the legendary Profilers' Guild, tasked with guiding
 
 First thing upon accepting this assignment, specify who will be the project coordinator (PC), the documentation lead (DL), and the group spokesperson (GS) for this project. The PC will be responsible for setting group meetings and ensuring that all aspects of the project are addressed equitably amongst the group. The DL will be responsible for ensuring that the project report is prepared according to the requirements and that all prompts are explicitly and clearly addressed. The GS will be responsible for giving a short presentation in class on the group's work upon completion of the project.
 
-**Project Coordinator (PC):**
+**Project Coordinator (PC):** Navigator
 
-**Documentation Lead (DL):** 
+**Documentation Lead (DL):** Lorekeeper
 
-**Group Spokesperson (GS):**
+**Group Spokesperson (GS):** Bard 
 
 ## Learning Objectives
 
