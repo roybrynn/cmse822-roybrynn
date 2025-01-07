@@ -1,0 +1,40 @@
+name: Create Issues for New Homework
+
+on:
+  repository_dispatch:
+    types: [create_issues] # Trigger when a repository is created via GitHub Classroom
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  create_issues:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Generate Issues for Homework
+        env:
+          CLASSROOM_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
+        run: |
+          # Define the homework directory to scan
+          HOMEWORK_DIR="homework/homework1"
+          
+          # Check if the homework directory exists
+          if [[ -d "$HOMEWORK_DIR" ]]; then
+            echo "Detected Homework directory: $HOMEWORK_DIR"
+            
+            # Loop over all .ipynb files in the directory
+            for notebook in "$HOMEWORK_DIR"/*.ipynb; do
+              # Extract the file name without path
+              exercise_name=$(basename "$notebook")
+              
+              # Create a GitHub Issue for the exercise
+              gh issue create --title "Complete Exercise: $exercise_name" \
+                              --body "This issue tracks progress for the **$exercise_name** notebook in Homework **$HOMEWORK_DIR**. Please complete the work as a team and check it off here when done." \
+                              --label "homework" \
+                              --reviewer $(gh api repos/$GITHUB_REPOSITORY/collaborators | jq -r '.[].login')
+            done
+          else
+            echo "No homework directory found at $HOMEWORK_DIR. Exiting."
+          fi
