@@ -3,7 +3,7 @@ name: Create Issues for New Homework
 on:
   repository_dispatch:
     types: [create_issues] # Trigger when a repository is created via GitHub Classroom
-  workflow_dispatch: # Allow manual trigger for testing
+  workflow_dispatch: # Allow manual trigger for testing 
 
 jobs:
   create_issues:
