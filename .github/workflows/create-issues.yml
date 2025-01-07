@@ -15,7 +15,7 @@ jobs:
 
       - name: Generate Issues for Homework
         env:
-          CLASSROOM_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
         run: |
           # Define the homework directory to scan
           HOMEWORK_DIR="homework/homework1"
