@@ -37,6 +37,10 @@ for i in $(seq 1 $NUM_NOTEBOOKS); do
   branch_name="exercise-${i}"
   NOTEBOOK_PATH="$HOMEWORK_DIR/${exercise_name}.ipynb"
 
+  # Create and switch to a new branch
+  git checkout "$MAIN_BRANCH" || { echo "Error: Failed to checkout $MAIN_BRANCH"; exit 1; }
+  git checkout -b "$branch_name"
+
   # Create the notebook JSON structure
   cat <<EOF > "$NOTEBOOK_PATH"
 {
@@ -47,10 +51,6 @@ for i in $(seq 1 $NUM_NOTEBOOKS); do
 }
 EOF
   echo "Generated $NOTEBOOK_PATH"
-
-  # Create and switch to a new branch
-  git checkout "$MAIN_BRANCH" || { echo "Error: Failed to checkout $MAIN_BRANCH"; exit 1; }
-  git checkout -b "$branch_name"
 
   # Commit and push the changes
   git add "$NOTEBOOK_PATH"
@@ -65,5 +65,7 @@ EOF
     --head "$branch_name" \
     --reviewer "$(gh api repos/$(gh repo view --json nameWithOwner --jq '.nameWithOwner')/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
 done
+
+git checkout "$MAIN_BRANCH"
 
 echo "All notebooks created, branches pushed, and pull requests opened!"
