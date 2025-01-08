@@ -1,40 +1,94 @@
-name: Create Issues for New Homework
+name: Generate and Create Pull Requests for Exercises
 
 on:
-  repository_dispatch:
-    types: [create_issues] # Trigger when a repository is created via GitHub Classroom
-  workflow_dispatch: # Allow manual trigger for testing 
+  push: # Trigger on push to main
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger for testing
 
 jobs:
-  create_issues:
+  generate_and_pr:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Generate Issues for Homework
+      - name: Set Git Author Identity
+        run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "GitHub Actions Bot"
+
+      - name: Check if Workflow Has Already Run
+        id: check_first_run
+        run: |
+          if git ls-remote --exit-code origin refs/heads/workflow-tracker; then
+            echo "Workflow has already run. Exiting."
+            exit 0
+          fi
+          echo "First run detected. Proceeding."
+
+      - name: Generate and Commit `.ipynb` Files
+        if: steps.check_first_run.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
         run: |
-          # Define the homework directory to scan
+          echo "Generating .ipynb files..."
+
+          # Directory to store the exercise notebooks
           HOMEWORK_DIR="homework/homework1"
-          
-          # Check if the homework directory exists
-          if [[ -d "$HOMEWORK_DIR" ]]; then
-            echo "Detected Homework directory: $HOMEWORK_DIR"
+          mkdir -p $HOMEWORK_DIR
+
+          # Specify the number of notebooks to create
+          NUM_FILES=10
+
+          # Generate .ipynb files
+          for i in $(seq 1 $NUM_FILES); do
+
+            exercise_name="exercise${i}"
+
+            # Ensure we are on main
+            git checkout main 
+
+            # Create a branch for this file
+            branch_name="exercise${i}"
+            git checkout -b "$branch_name"
+
+            NOTEBOOK="$HOMEWORK_DIR/${exercise_name}.ipynb"
+
+            # Create a basic notebook structure (JSON format)
+            echo "{
+              \"cells\": [],
+              \"metadata\": {},
+              \"nbformat\": 4,
+              \"nbformat_minor\": 4
+            }" > $NOTEBOOK
+
+            echo "Generated $NOTEBOOK"
+
+            # Commit the changes
+            git add "$HOMEWORK_DIR"
+            git commit -m "Add $exercise_name notebooks"
             
-            # Loop over all .ipynb files in the directory
-            for notebook in "$HOMEWORK_DIR"/*.ipynb; do
-              # Extract the file name without path
-              exercise_name=$(basename "$notebook")
-              
-              # Create a GitHub Issue for the exercise
-              gh issue create --title "Complete Exercise: $exercise_name" \
-                              --body "This issue tracks progress for the **$exercise_name** notebook in Homework **$HOMEWORK_DIR**. Please complete the work as a team and check it off here when done." \
-                              --label "homework" \
-                              --reviewer $(gh api repos/$GITHUB_REPOSITORY/collaborators | jq -r '.[].login')
-            done
-          else
-            echo "No homework directory found at $HOMEWORK_DIR. Exiting."
-          fi
+            # Push the branch
+            git fetch
+            git push origin "$branch_name"
+
+            # Create a pull request with reviewers
+            gh pr create \
+              --title "Complete Exercise: $exercise_name" \
+              --body "This pull request tracks progress for the **$exercise_name** notebook in Homework **$HOMEWORK_DIR**. Please review and merge when complete." \
+              --base main \
+              --head "$branch_name" \
+              --reviewer "$(gh api repos/${{ github.repository }}/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
+
+      - name: Track Workflow Run
+        if: steps.check_first_run.outcome == 'success'
+        run: |
+          # Create a branch to track that the workflow has run
+          git checkout main
+          git checkout -b workflow-tracker
+          touch workflow-ran.txt
+          git add workflow-ran.txt
+          git commit -m "Track that the workflow has already run"
+          git push origin workflow-tracker
