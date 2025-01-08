@@ -20,6 +20,14 @@ if ! command -v gh &> /dev/null; then
   exit 1
 fi
 
+# Automatically set the default repository for GitHub CLI
+REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+if [ -z "$REPO" ]; then
+  echo "Error: Could not detect the repository. Are you in the correct directory?"
+  exit 1
+fi
+gh repo set-default "$REPO"
+
 # Ensure the homework directory exists
 mkdir -p "$HOMEWORK_DIR"
 
