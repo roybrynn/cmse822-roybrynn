@@ -1,6 +1,6 @@
 # Syllabus - CMSE/CSE 822
 
-## Spring 2024, Michigan State University
+## Spring 2025, Michigan State University
 
 This graduate-level course covers the practical and theoretical aspects of  high-performance parallel computing in science and engineering.
 
@@ -10,10 +10,10 @@ At the conclusion of this course, you should be able to
 
 - Benchmark and profile the performance of serial and parallel applications
 - Develop and optimize applications using:
-  - shared-memory threading parallelism
   - distributed-memory message passing
+  - shared-memory threading parallelism
   - hybrid parallelism 
-  - and GPU hardware
+  - accelerators (e.g., GPUs)
 - Make effective use of high-performance parallel computing architectures
 - Understand the current state of high-performance parallel computing
 
@@ -32,41 +32,27 @@ Zoom: [msu.zoom.us/my/scouch](http://msu.zoom.us/my/scouch)
 **Teaching Assistant/Grader:**  
 Ian Freeman
 Office hours: TBD
-[amadovic@msu.edu](mailto:amadovic@msu.edu)
+[freem386@msu.edu](mailto:freem386@msu.edu)
 
 ### Class meetings and office hours
 
 The class meets Tuesdays and Thursdays from 10:20 am to 11:40 am Eastern in EGR 2400. 
 Class meetings are meant to be highly interactive and you are expected to attend if possible.
 
-### Communication and Slack
-
-The primary means of communication for this course will be [Slack](http://slack.com).
-There is a workspace specifically for this course at [cmse-822.slack.com](http://cmse-822.slack.com).
-You may use your `@msu.edu` email address to join this Slack workspace.
-Please join this Slack workspace and participate in discussions.
-Discussion of course subject material is encouraged.
-You may also send direct messages via Slack to the instructors or any other member of the workspace.
-For group work, there will be dedicated channels for each group.
-You are also expected to check your `@msu.edu` email account as communication about the course may come there, as well.
-
 ### Text book and references
 
-The two primary textbooks for this course are [High Performance Scientific Computing](assets/EijkhoutIntroToHPC2020.pdf) and [Parallel Programming in Science and Engineering](assets/EijkhoutParallelProgramming.pdf), both by Victor Eijkhout.
-Both of these texts are open-source and freely-available from the author.
+The two primary textbooks for this course are [High Performance Scientific Computing](EijkhoutIntroToHPC2020.pdf) and [Parallel Programming in Science and Engineering](EijkhoutParallelProgramming.pdf), both by Victor Eijkhout.
+Both of these texts are open-source and freely-available from the author, see [this repo](https://theartofhpc.com).
 Supplementary reading and reference material is available on the course webpage under [Resources](resources.md).
 
 ### Required technologies and software 
 
-- Slack
 - a GitHub account
-- a MSU HPCC account
+- a MSU HPCC account (if you don't already have one, we will request one for you.)
 
-### Use of HPCC
+### Coursework 
 
-The course assignments and projects will utilize the MSU campus High Performance Computing Center (HPCC). All students must have an account on the HPCC. If you don't already have one, one will be made for you at the start of this course.
 
-### Pre-class Assignments
 
 For almost every class meeting, there will be an associated pre-class assignment that you should complete before attending. The pre-class assignments will serve as the basis for in-class discussion and so it is important that you complete them.
 
@@ -119,10 +105,10 @@ The weights for the course grade are as follows.
 
 Category               | %
 -----------------------|----
-Group Projects         | 50%
-Homework               | 25%
+Group Projects         | 40%
+Homework               | 30%
 Group Participation    | 10%
-Final Project          | 15%
+Final Project          | 20%
 
 The final course grade will be assigned based on the following scale.
 
