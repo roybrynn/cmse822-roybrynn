@@ -20,12 +20,14 @@ if ! command -v gh &> /dev/null; then
   exit 1
 fi
 
-# Automatically set the default repository for GitHub CLI
-REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+# Detect the current repository based on the local Git remote URL
+REPO=$(git config --get remote.origin.url | sed -E 's#(git@|https://)([^:/]+)[:/]([^/]+)/([^/.]+)(\.git)?#\3/\4#')
 if [ -z "$REPO" ]; then
   echo "Error: Could not detect the repository. Are you in the correct directory?"
   exit 1
 fi
+
+# Set the detected repository as the default for the GitHub CLI
 gh repo set-default "$REPO"
 
 # Ensure the homework directory exists
@@ -34,12 +36,12 @@ mkdir -p "$HOMEWORK_DIR"
 # Loop to create notebooks, branches, and PRs
 for i in $(seq 1 $NUM_NOTEBOOKS); do
   exercise_name="exercise${i}"
-  branch_name="exercise-${i}"
+  branch_name="${HOMEWORK_DIR}-exercise-${i}"
   NOTEBOOK_PATH="$HOMEWORK_DIR/${exercise_name}.ipynb"
 
   # Create and switch to a new branch
   git checkout "$MAIN_BRANCH" || { echo "Error: Failed to checkout $MAIN_BRANCH"; exit 1; }
-  git checkout -b "$branch_name"
+  git switch -c "$branch_name"
 
   # Create the notebook JSON structure
   cat <<EOF > "$NOTEBOOK_PATH"
@@ -57,13 +59,16 @@ EOF
   git commit -m "Add $exercise_name notebook"
   git push origin "$branch_name"
 
+  # Reviewers
+    echo "$(gh api repos/$REPO/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
+
   # Create a pull request for the branch
   gh pr create \
     --title "Complete Exercise: $exercise_name" \
     --body "This pull request tracks progress for the **$exercise_name** notebook in Homework **$HOMEWORK_DIR**. Please review and merge when complete." \
     --base "$MAIN_BRANCH" \
     --head "$branch_name" \
-    --reviewer "$(gh api repos/$(gh repo view --json nameWithOwner --jq '.nameWithOwner')/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
+    --reviewer "$(gh api repos/$REPO/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
 done
 
 git checkout "$MAIN_BRANCH"
