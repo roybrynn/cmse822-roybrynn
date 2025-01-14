@@ -38,9 +38,11 @@ Office hours: Tuesday, 9:45 am to 10:20 am; Thursdays, after class
 
 The class meets Tuesdays and Thursdays from 10:20 am to 11:40 am Eastern in EGR 2400. 
 Class meetings are meant to be highly interactive and you are expected to attend if possible.
+In the event you are unable to attend in person, you may join class via Zoom at [this link](https://msu.zoom.us/j/98767718147).
 
 ### Text book and references
 
+The course website, cmse822.github.io, will be the primary source for course information throughout the semester.
 The two primary textbooks for this course are [High Performance Scientific Computing](EijkhoutIntroToHPC2020.pdf) and [Parallel Programming in Science and Engineering](EijkhoutParallelProgramming.pdf), both by Victor Eijkhout.
 Both of these texts are open-source and freely-available from the author, see [this repo](https://theartofhpc.com).
 Supplementary reading and reference material is available on the course webpage under [Resources](resources.md).
