@@ -29,17 +29,27 @@ fi
 gh repo set-default "$REPO"
 
 # Ensure the homework directory exists
-mkdir -p "$HOMEWORK_DIR"
+if [ ! -d "$HOMEWORK_DIR" ]; then
+  echo "Error: The homework directory '$HOMEWORK_DIR' does not exist. Please create it first."
+  exit 1
+fi
 
 # Loop to create notebooks, branches, and PRs
 for i in $(seq 1 $NUM_NOTEBOOKS); do
   exercise_name="exercise${i}"
-  branch_name="exercise-${i}"
+  branch_name="${HOMEWORK_DIR}-exercise-${i}"
   NOTEBOOK_PATH="$HOMEWORK_DIR/${exercise_name}.ipynb"
 
   # Create and switch to a new branch
   git checkout "$MAIN_BRANCH" || { echo "Error: Failed to checkout $MAIN_BRANCH"; exit 1; }
-  git checkout -b "$branch_name"
+  # Check if the branch already exists
+  if git branch -r | grep "origin/$branch_name" > /dev/null; then
+    echo "Branch '$branch_name' already exists. Switching to it."
+    git switch "$branch_name"
+  else
+    # Create the branch
+    git switch -C "$branch_name"
+  fi
 
   # Create the notebook JSON structure
   cat <<EOF > "$NOTEBOOK_PATH"
@@ -59,6 +69,7 @@ EOF
 
   # Create a pull request for the branch
   gh pr create \
+    --repo "$REPO" \
     --title "Complete Exercise: $exercise_name" \
     --body "This pull request tracks progress for the **$exercise_name** notebook in Homework **$HOMEWORK_DIR**. Please review and merge when complete." \
     --base "$MAIN_BRANCH" \
@@ -66,6 +77,6 @@ EOF
     --reviewer "$(gh api repos/$(gh repo view --json nameWithOwner --jq '.nameWithOwner')/collaborators --jq '.[].login' | tr '\n' ',' | sed 's/,$//')"
 done
 
-git checkout "$MAIN_BRANCH"
+git switch "$MAIN_BRANCH"
 
 echo "All notebooks created, branches pushed, and pull requests opened!"
