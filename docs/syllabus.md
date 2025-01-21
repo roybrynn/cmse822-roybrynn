@@ -25,7 +25,7 @@ Department of Physics and Astronomy
 Department of Computational Mathematics, Science, and Engineering  
 Facility for Rare Isotope Beams  
 Office: 3260 BPS  
-Office hours: _by appointment_  
+Office hours: after class or by apointment  
 Zoom: [msu.zoom.us/my/scouch](http://msu.zoom.us/my/scouch)  
 [scouch@msu.edu](mailto:scouch@msu.edu)  
 
@@ -134,15 +134,15 @@ Your final grade will be no lower than that indicated on the above scale, though
 
 The _tentative_ detailed course schedule is available [here](schedule.md). Updates and details will also be made on that page and communicated via the course Slack channel. The course will cover the following topics.
 
-1. **Performance Profiling and Optimization**
-2. **Parallel Computing Theory**
-3. **Message Passing Interface (MPI) Basics**
-4. **Advanced MPI Topics**
-5. **Parallel Algorithms and Computational Patterns**
-6. **GPU Programming**
-7. **Hybrid Computing**
-8. **Load Balancing and Scalability**
-9. **Validation and Testing**
+- **Performance Profiling and Optimization**
+- **Parallel Computing Theory**
+- **Parallel Algorithms and Computational Patterns**
+- **Message Passing Interface (MPI) Basics**
+- **Advanced MPI Topics**
+- **GPU Programming**
+- **Hybrid Computing**
+- **Load Balancing and Scalability**
+- **Validation and Testing**
 
 ### Spartan Code of Honor Academic Pledge
 
