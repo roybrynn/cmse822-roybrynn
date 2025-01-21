@@ -1,11 +1,21 @@
+#include "EulerSolver.hpp"
+#include "Field3D.hpp"
 
-//------------------------------------------------------------
-// Helper functions
-//------------------------------------------------------------
+#include <algorithm>
+#include <cmath>
+#include <iostream>
 
-// Pressure
-inline double pressure(double rho, double rhou, double rhov, double rhow, double E)
+namespace agoge {
+namespace euler {
+
+/**
+ * @brief Compute pressure from conserved variables.
+ *
+ * p = (gamma - 1) * [E - 0.5 * rho * (u^2 + v^2 + w^2)]
+ */
+static inline double pressure(double rho, double rhou, double rhov, double rhow, double E)
 {
+    double gamma_gas = 1.4; // Or retrieve from config if desired.
     double u = rhou / rho;
     double v = rhov / rho;
     double w = rhow / rho;
@@ -14,175 +24,286 @@ inline double pressure(double rho, double rhou, double rhov, double rhow, double
     return p;
 }
 
-// Maximum wave speed (for CFL)
-inline double maxWaveSpeed(double rho, double rhou, double rhov, double rhow, double E)
+/**
+ * @brief Helper to compute gravitational acceleration from phi, if gravField provided.
+ *
+ * g = - grad(phi). Using simple central differences with periodic indexing for demonstration.
+ */
+static inline void computeGravityAccel(const Field3D &gravField,
+                                       int i, int j, int k,
+                                       double &gx, double &gy, double &gz)
 {
-    double p = pressure(rho, rhou, rhov, rhow, E);
-    double u = rhou / rho;
-    double v = rhov / rho;
-    double w = rhow / rho;
-    double a = std::sqrt(gamma_gas * p / rho); // speed of sound
-    double speed = std::sqrt(u*u + v*v + w*w);
-    return speed + a;
+    int Nx = gravField.Nx;
+    int Ny = gravField.Ny;
+    int Nz = gravField.Nz;
+
+    double dx = gravField.dx;
+    double dy = gravField.dy;
+    double dz = gravField.dz;
+
+    // Periodic neighbors
+    int iL = (i == 0)        ? (Nx - 1) : (i - 1);
+    int iR = (i == Nx - 1)   ? 0        : (i + 1);
+    int jL = (j == 0)        ? (Ny - 1) : (j - 1);
+    int jR = (j == Ny - 1)   ? 0        : (j + 1);
+    int kL = (k == 0)        ? (Nz - 1) : (k - 1);
+    int kR = (k == Nz - 1)   ? 0        : (k + 1);
+
+    int idxC = gravField.index(i,j,k);
+    int idxXm = gravField.index(iL,j,k);
+    int idxXp = gravField.index(iR,j,k);
+    int idxYm = gravField.index(i,jL,k);
+    int idxYp = gravField.index(i,jR,k);
+    int idxZm = gravField.index(i,j,kL);
+    int idxZp = gravField.index(i,j,kR);
+
+    double phiC  = gravField.phi[idxC];
+    double phiXm = gravField.phi[idxXm];
+    double phiXp = gravField.phi[idxXp];
+    double phiYm = gravField.phi[idxYm];
+    double phiYp = gravField.phi[idxYp];
+    double phiZm = gravField.phi[idxZm];
+    double phiZp = gravField.phi[idxZp];
+
+    double dphidx = (phiXp - phiXm) / (2.0 * dx);
+    double dphidy = (phiYp - phiYm) / (2.0 * dy);
+    double dphidz = (phiZp - phiZm) / (2.0 * dz);
+
+    gx = -dphidx;
+    gy = -dphidy;
+    gz = -dphidz;
 }
 
-// x-direction flux
-inline void fluxX(double rho, double rhou, double rhov, double rhow, double E,
-                  double& Fx0, double& Fx1, double& Fx2, double& Fx3, double& Fx4)
+void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
 {
-    double p = pressure(rho, rhou, rhov, rhow, E);
-    double u = rhou / rho;
-    Fx0 = rhou;
-    Fx1 = rhou*u + p;         // rho*u^2 + p
-    Fx2 = rhou*(rhov / rho);  // rho*u*v
-    Fx3 = rhou*(rhow / rho);  // rho*u*w
-    Fx4 = (E + p)*u;
-}
+    // Zero out LQ fields
+    std::fill(LQ.rho .begin(), LQ.rho .end(),  0.0);
+    std::fill(LQ.rhou.begin(), LQ.rhou.end(), 0.0);
+    std::fill(LQ.rhov.begin(), LQ.rhov.end(), 0.0);
+    std::fill(LQ.rhow.begin(), LQ.rhow.end(), 0.0);
+    std::fill(LQ.E   .begin(), LQ.E   .end(), 0.0);
+    std::fill(LQ.phi .begin(), LQ.phi .end(), 0.0); // Not necessarily used, but zero for safety
 
-// y-direction flux
-inline void fluxY(double rho, double rhou, double rhov, double rhow, double E,
-                  double& Fy0, double& Fy1, double& Fy2, double& Fy3, double& Fy4)
-{
-    double p = pressure(rho, rhou, rhov, rhow, E);
-    double v = rhov / rho;
-    Fy0 = rhov;
-    Fy1 = rhov*(rhou / rho);  // rho*v*u
-    Fy2 = rhov*v + p;         // rho*v^2 + p
-    Fy3 = rhov*(rhow / rho);  // rho*v*w
-    Fy4 = (E + p)*v;
-}
+    // For flux calculations
+    int Nx = Q.Nx;
+    int Ny = Q.Ny;
+    int Nz = Q.Nz;
 
-// z-direction flux
-inline void fluxZ(double rho, double rhou, double rhov, double rhow, double E,
-                  double& Fz0, double& Fz1, double& Fz2, double& Fz3, double& Fz4)
-{
-    double p = pressure(rho, rhou, rhov, rhow, E);
-    double w = rhow / rho;
-    Fz0 = rhow;
-    Fz1 = rhow*(rhou / rho);  // rho*w*u
-    Fz2 = rhow*(rhov / rho);  // rho*w*v
-    Fz3 = rhow*w + p;         // rho*w^2 + p
-    Fz4 = (E + p)*w;
-}
+    double dx = Q.dx;
+    double dy = Q.dy;
+    double dz = Q.dz;
 
-//------------------------------------------------------------
-// Compute L(Q) = - ( dF/dx + dF/dy + dF/dz ) using central diffs
-//------------------------------------------------------------
-void computeL(const Field3D& Q,
-              std::vector<double>& L_rho,
-              std::vector<double>& L_rhou,
-              std::vector<double>& L_rhov,
-              std::vector<double>& L_rhow,
-              std::vector<double>& L_E)
-{
-    const int Nx_ = Q.Nx_;
-    const int Ny_ = Q.Ny_;
-    const int Nz_ = Q.Nz_;
-    const double dx_ = Q.dx_;
-    const double dy_ = Q.dy_;
-    const double dz_ = Q.dz_;
+    // Loop over each cell
+    for(int k = 0; k < Nz; k++) {
+        for(int j = 0; j < Ny; j++) {
+            for(int i = 0; i < Nx; i++) {
 
-    std::fill(L_rho.begin(),  L_rho.end(),  0.0);
-    std::fill(L_rhou.begin(), L_rhou.end(), 0.0);
-    std::fill(L_rhov.begin(), L_rhov.end(), 0.0);
-    std::fill(L_rhow.begin(), L_rhow.end(), 0.0);
-    std::fill(L_E.begin(),    L_E.end(),    0.0);
+                // Periodic neighbors
+                int iL = (i == 0)        ? (Nx - 1) : (i - 1);
+                int iR = (i == Nx - 1)   ? 0        : (i + 1);
+                int jL = (j == 0)        ? (Ny - 1) : (j - 1);
+                int jR = (j == Ny - 1)   ? 0        : (j + 1);
+                int kL = (k == 0)        ? (Nz - 1) : (k - 1);
+                int kR = (k == Nz - 1)   ? 0        : (k + 1);
 
-    double FxL[5], FxR[5];
-    double FyL[5], FyR[5];
-    double FzL[5], FzR[5];
+                int idxC  = Q.index(i, j, k);
+                int idxXm = Q.index(iL, j, k);
+                int idxXp = Q.index(iR, j, k);
+                int idxYm = Q.index(i, jL, k);
+                int idxYp = Q.index(i, jR, k);
+                int idxZm = Q.index(i, j, kL);
+                int idxZp = Q.index(i, j, kR);
 
-    // #pragma omp parallel for collapse(3)  // Optionally parallelize
-    for(int k = 0; k < Nz_; k++) {
-        for(int j = 0; j < Ny_; j++) {
-            for(int i = 0; i < Nx_; i++) {
+                // Load current cell
+                double rhoC  = Q.rho [idxC];
+                double rhouC = Q.rhou[idxC];
+                double rhovC = Q.rhov[idxC];
+                double rhowC = Q.rhow[idxC];
+                double EC    = Q.E   [idxC];
 
-                // Periodic in x, y, z
-                int iL = (i == 0)      ? (Nx_ - 1) : (i - 1);
-                int iR = (i == Nx_ - 1)? 0         : (i + 1);
+                // X-direction neighbors
+                double rhoXm  = Q.rho [idxXm];
+                double rhoXp  = Q.rho [idxXp];
+                double rhouXm = Q.rhou[idxXm];
+                double rhouXp = Q.rhou[idxXp];
+                double rhovXm = Q.rhov[idxXm];
+                double rhovXp = Q.rhov[idxXp];
+                double rhowXm = Q.rhow[idxXm];
+                double rhowXp = Q.rhow[idxXp];
+                double EXm    = Q.E   [idxXm];
+                double EXp    = Q.E   [idxXp];
 
-                int jL = (j == 0)      ? (Ny_ - 1) : (j - 1);
-                int jR = (j == Ny_ - 1)? 0         : (j + 1);
+                // Y-direction neighbors
+                double rhoYm  = Q.rho [idxYm];
+                double rhoYp  = Q.rho [idxYp];
+                double rhouYm = Q.rhou[idxYm];
+                double rhouYp = Q.rhou[idxYp];
+                double rhovYm = Q.rhov[idxYm];
+                double rhovYp = Q.rhov[idxYp];
+                double rhowYm = Q.rhow[idxYm];
+                double rhowYp = Q.rhow[idxYp];
+                double EYm    = Q.E   [idxYm];
+                double EYp    = Q.E   [idxYp];
 
-                int kL = (k == 0)      ? (Nz_ - 1) : (k - 1);
-                int kR = (k == Nz_ - 1)? 0         : (k + 1);
+                // Z-direction neighbors
+                double rhoZm  = Q.rho [idxZm];
+                double rhoZp  = Q.rho [idxZp];
+                double rhouZm = Q.rhou[idxZm];
+                double rhouZp = Q.rhou[idxZp];
+                double rhovZm = Q.rhov[idxZm];
+                double rhovZp = Q.rhov[idxZp];
+                double rhowZm = Q.rhow[idxZm];
+                double rhowZp = Q.rhow[idxZp];
+                double EZm    = Q.E   [idxZm];
+                double EZp    = Q.E   [idxZp];
 
-                // Current cell
-                int idxC = Q.index(i,j,k);
+                // Compute flux differences via simple central difference
+                // (F_{i+1} - F_{i-1}) / 2 dx, etc.
 
-                // Neighbor indices
-                int idxXm = Q.index(iL,j,k), idxXp = Q.index(iR,j,k);
-                int idxYm = Q.index(i,jL,k), idxYp = Q.index(i,jR,k);
-                int idxZm = Q.index(i,j,kL), idxZp = Q.index(i,j,kR);
+                // 1. X-direction flux difference
+                //    F_x(rho)   = rho * u
+                //    F_x(rhou)  = rho u^2 + p
+                //    F_x(rhov)  = rho u v
+                //    F_x(rhow)  = rho u w
+                //    F_x(E)     = (E + p) u
+                auto fluxX = [&](double r, double ru, double rv, double rw, double Ecell){
+                    double pcell = pressure(r, ru, rv, rw, Ecell);
+                    double u     = ru / r;
+                    return std::array<double,5>{
+                        ru,                 // rho u
+                        ru*u + pcell,       // rho u^2 + p
+                        ru*(rv/r),          // rho u v
+                        ru*(rw/r),          // rho u w
+                        (Ecell + pcell)*u
+                    };
+                };
 
-                // Load neighbor data
-                fluxX(Q.rho [idxXm], Q.rhou[idxXm], Q.rhov[idxXm], Q.rhow[idxXm], Q.E[idxXm],
-                      FxL[0], FxL[1], FxL[2], FxL[3], FxL[4]);
-                fluxX(Q.rho [idxXp], Q.rhou[idxXp], Q.rhov[idxXp], Q.rhow[idxXp], Q.E[idxXp],
-                      FxR[0], FxR[1], FxR[2], FxR[3], FxR[4]);
+                auto FXm = fluxX(rhoXm, rhouXm, rhovXm, rhowXm, EXm);
+                auto FXp = fluxX(rhoXp, rhouXp, rhovXp, rhowXp, EXp);
 
-                fluxY(Q.rho [idxYm], Q.rhou[idxYm], Q.rhov[idxYm], Q.rhow[idxYm], Q.E[idxYm],
-                      FyL[0], FyL[1], FyL[2], FyL[3], FyL[4]);
-                fluxY(Q.rho [idxYp], Q.rhou[idxYp], Q.rhov[idxYp], Q.rhow[idxYp], Q.E[idxYp],
-                      FyR[0], FyR[1], FyR[2], FyR[3], FyR[4]);
+                double inv2dx = 1.0/(2.0*dx);
+                double dFxdx_rho  = (FXp[0] - FXm[0]) * inv2dx;
+                double dFxdx_rhou = (FXp[1] - FXm[1]) * inv2dx;
+                double dFxdx_rhov = (FXp[2] - FXm[2]) * inv2dx;
+                double dFxdx_rhow = (FXp[3] - FXm[3]) * inv2dx;
+                double dFxdx_E    = (FXp[4] - FXm[4]) * inv2dx;
 
-                fluxZ(Q.rho [idxZm], Q.rhou[idxZm], Q.rhov[idxZm], Q.rhow[idxZm], Q.E[idxZm],
-                      FzL[0], FzL[1], FzL[2], FzL[3], FzL[4]);
-                fluxZ(Q.rho [idxZp], Q.rhou[idxZp], Q.rhov[idxZp], Q.rhow[idxZp], Q.E[idxZp],
-                      FzR[0], FzR[1], FzR[2], FzR[3], FzR[4]);
+                // 2. Y-direction flux difference
+                auto fluxY = [&](double r, double ru, double rv, double rw, double Ecell){
+                    double pcell = pressure(r, ru, rv, rw, Ecell);
+                    double v     = rv / r;
+                    return std::array<double,5>{
+                        rv,                 // rho v
+                        rv*(ru/r),          // rho v u
+                        rv*v + pcell,       // rho v^2 + p
+                        rv*(rw/r),          // rho v w
+                        (Ecell + pcell)*v
+                    };
+                };
 
-                double inv2dx = 1.0/(2.0*dx_);
-                double inv2dy = 1.0/(2.0*dy_);
-                double inv2dz = 1.0/(2.0*dz_);
+                auto FYm = fluxY(rhoYm, rhouYm, rhovYm, rhowYm, EYm);
+                auto FYp = fluxY(rhoYp, rhouYp, rhovYp, rhowYp, EYp);
 
-                // Differences
-                double dFxdx0 = (FxR[0] - FxL[0]) * inv2dx;
-                double dFxdx1 = (FxR[1] - FxL[1]) * inv2dx;
-                double dFxdx2 = (FxR[2] - FxL[2]) * inv2dx;
-                double dFxdx3 = (FxR[3] - FxL[3]) * inv2dx;
-                double dFxdx4 = (FxR[4] - FxL[4]) * inv2dx;
+                double inv2dy = 1.0/(2.0*dy);
+                double dFydy_rho  = (FYp[0] - FYm[0]) * inv2dy;
+                double dFydy_rhou = (FYp[1] - FYm[1]) * inv2dy;
+                double dFydy_rhov = (FYp[2] - FYm[2]) * inv2dy;
+                double dFydy_rhow = (FYp[3] - FYm[3]) * inv2dy;
+                double dFydy_E    = (FYp[4] - FYm[4]) * inv2dy;
 
-                double dFydy0 = (FyR[0] - FyL[0]) * inv2dy;
-                double dFydy1 = (FyR[1] - FyL[1]) * inv2dy;
-                double dFydy2 = (FyR[2] - FyL[2]) * inv2dy;
-                double dFydy3 = (FyR[3] - FyL[3]) * inv2dy;
-                double dFydy4 = (FyR[4] - FyL[4]) * inv2dy;
+                // 3. Z-direction flux difference
+                auto fluxZ = [&](double r, double ru, double rv, double rw, double Ecell){
+                    double pcell = pressure(r, ru, rv, rw, Ecell);
+                    double w     = rw / r;
+                    return std::array<double,5>{
+                        rw,                // rho w
+                        rw*(ru/r),         // rho w u
+                        rw*(rv/r),         // rho w v
+                        rw*w + pcell,      // rho w^2 + p
+                        (Ecell + pcell)*w
+                    };
+                };
 
-                double dFzdz0 = (FzR[0] - FzL[0]) * inv2dz;
-                double dFzdz1 = (FzR[1] - FzL[1]) * inv2dz;
-                double dFzdz2 = (FzR[2] - FzL[2]) * inv2dz;
-                double dFzdz3 = (FzR[3] - FzL[3]) * inv2dz;
-                double dFzdz4 = (FzR[4] - FzL[4]) * inv2dz;
+                auto FZm = fluxZ(rhoZm, rhouZm, rhovZm, rhowZm, EZm);
+                auto FZp = fluxZ(rhoZp, rhouZp, rhovZp, rhowZp, EZp);
 
-                // Accumulate in L arrays
-                L_rho [idxC] = - (dFxdx0 + dFydy0 + dFzdz0);
-                L_rhou[idxC] = - (dFxdx1 + dFydy1 + dFzdz1);
-                L_rhov[idxC] = - (dFxdx2 + dFydy2 + dFzdz2);
-                L_rhow[idxC] = - (dFxdx3 + dFydy3 + dFzdz3);
-                L_E   [idxC] = - (dFxdx4 + dFydy4 + dFzdz4);
+                double inv2dz = 1.0/(2.0*dz);
+                double dFzdz_rho  = (FZp[0] - FZm[0]) * inv2dz;
+                double dFzdz_rhou = (FZp[1] - FZm[1]) * inv2dz;
+                double dFzdz_rhov = (FZp[2] - FZm[2]) * inv2dz;
+                double dFzdz_rhow = (FZp[3] - FZm[3]) * inv2dz;
+                double dFzdz_E    = (FZp[4] - FZm[4]) * inv2dz;
 
-                // Compute partial derivatives of phi (central difference)
-                double dphidx = ( phi[idx(i+1,j,k)] - phi[idx(i-1,j,k)] ) / (2.0*dx );
-                double dphidy = ( phi[idx(i,j+1,k)] - phi[idx(i,j-1,k)] ) / (2.0*dy );
-                double dphidz = ( phi[idx(i,j,k+1)] - phi[idx(i,j,k-1)] ) / (2.0*dz );
+                // Accumulate in LQ
+                // L(Q) = - ( dFxdx + dFydy + dFzdz )
+                double rhs_rho  = - ( dFxdx_rho  + dFydy_rho  + dFzdz_rho  );
+                double rhs_rhou = - ( dFxdx_rhou + dFydy_rhou + dFzdz_rhou );
+                double rhs_rhov = - ( dFxdx_rhov + dFydy_rhov + dFzdz_rhov );
+                double rhs_rhow = - ( dFxdx_rhow + dFydy_rhow + dFzdz_rhow );
+                double rhs_E    = - ( dFxdx_E    + dFydy_E    + dFzdz_E    );
 
-                // Gravitational acceleration components
-                double gx = -dphidx;
-                double gy = -dphidy;
-                double gz = -dphidz;
+                // Gravity source terms, if gravField != nullptr
+                if(gravField) {
+                    double gx=0.0, gy=0.0, gz=0.0;
+                    computeGravityAccel(*gravField, i, j, k, gx, gy, gz);
 
-                // Then add to L_rhou, L_rhov, L_rhow
-                L_rhou[idxC] += Q.rho[idxC] * gx;
-                L_rhov[idxC] += Q.rho[idxC] * gy;
-                L_rhow[idxC] += Q.rho[idxC] * gz;
+                    // Add + rho*g to momentum, + rho*(u dot g) to energy
+                    rhs_rhou += rhoC * gx;
+                    rhs_rhov += rhoC * gy;
+                    rhs_rhow += rhoC * gz;
 
-                // And to L_E:  ( -rho * u dot grad(phi) ) = rho * (u dot g)
-                double ux = Q.rhou[idxC]/Q.rho[idxC];
-                double uy = Q.rhov[idxC]/Q.rho[idxC];
-                double uz = Q.rhow[idxC]/Q.rho[idxC];
+                    // Add energy source: E' = +rho * (u dot g)
+                    double u = rhouC / rhoC;
+                    double v = rhovC / rhoC;
+                    double w = rhowC / rhoC;
+                    rhs_E += rhoC * (u*gx + v*gy + w*gz);
+                }
 
-                L_E[idxC] += Q.rho[idxC] * (ux*gx + uy*gy + uz*gz);
+                // Store in LQ
+                LQ.rho [idxC] = rhs_rho;
+                LQ.rhou[idxC] = rhs_rhou;
+                LQ.rhov[idxC] = rhs_rhov;
+                LQ.rhow[idxC] = rhs_rhow;
+                LQ.E   [idxC] = rhs_E;
             }
         }
     }
 }
+
+void runRK2(Field3D &Q, double dt)
+{
+    // Temporary field for stage 1
+    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
+
+    // Temporary field for L(Q) computations
+    Field3D LQ (Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
+    Field3D LQtemp (Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
+
+    // Stage 1: Qtemp = Q + dt * L(Q)
+    computeL(Q, LQ, nullptr); // If gravity is needed, pass &Q or separate field
+    for(size_t n = 0; n < Q.rho.size(); ++n) {
+        Qtemp.rho [n] = Q.rho [n]  + dt * LQ.rho [n];
+        Qtemp.rhou[n] = Q.rhou[n] + dt * LQ.rhou[n];
+        Qtemp.rhov[n] = Q.rhov[n] + dt * LQ.rhov[n];
+        Qtemp.rhow[n] = Q.rhow[n] + dt * LQ.rhow[n];
+        Qtemp.E   [n] = Q.E   [n] + dt * LQ.E   [n];
+    }
+
+    // Stage 2: Q^(n+1) = 0.5*[Q + Qtemp + dt * L(Qtemp)]
+    computeL(Qtemp, LQtemp, nullptr); // If gravity, pass it in
+    for(size_t n = 0; n < Q.rho.size(); ++n) {
+        Q.rho [n] = 0.5 * ( Q.rho [n]  + Qtemp.rho [n]
+                         + dt * LQtemp.rho [n] );
+        Q.rhou[n] = 0.5 * ( Q.rhou[n] + Qtemp.rhou[n]
+                         + dt * LQtemp.rhou[n] );
+        Q.rhov[n] = 0.5 * ( Q.rhov[n] + Qtemp.rhov[n]
+                         + dt * LQtemp.rhov[n] );
+        Q.rhow[n] = 0.5 * ( Q.rhow[n] + Qtemp.rhow[n]
+                         + dt * LQtemp.rhow[n] );
+        Q.E   [n] = 0.5 * ( Q.E   [n] + Qtemp.E   [n]
+                         + dt * LQtemp.E   [n] );
+    }
+}
+
+} // namespace euler
+} // namespace agoge
