@@ -37,5 +37,17 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField = nullptr)
  */
 void runRK2(Field3D &Q, double dt);
 
+/**
+ * @brief Computes a stable time step size \(\Delta t\) based on the CFL condition.
+ *
+ * Scans all cells in \p Q, computing local wave speed (|u|+a) to find the
+ * maximum wave speed. Returns \(\Delta t = \text{cfl} \times \min(dx,dy,dz) / \max(\text{wave speed})\).
+ *
+ * @param[in] Q   The current state field (density, momentum, energy).
+ * @param[in] cfl The desired CFL number (e.g., 0.5).
+ * @return The computed time step size.
+ */
+double computeTimeStep(const Field3D &Q, double cfl);
+
 } // namespace euler
 } // namespace agoge
