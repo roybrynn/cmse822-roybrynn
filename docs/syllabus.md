@@ -156,14 +156,14 @@ In particular, plagiarism of any kind will result in the complete loss of credit
 
 **Related Policies:** 
 Institutional Data Policy: 
-https://tech.msu.edu/about/guidelines-policies/msu-institutional-data-policy/ 
+<https://tech.msu.edu/about/guidelines-policies/msu-institutional-data-policy/> 
 Student Privacy Guidelines and Notification of Rights under FERPA 
-https://reg.msu.edu/ROInfo/Notices/PrivacyGuidelines.aspx
+<https://reg.msu.edu/ROInfo/Notices/PrivacyGuidelines.aspx>
 
 As members of a learning community, students are expected to respect the intellectual property of course instructors. All course materials presented to students are the copyrighted property of the course instructor and are subject to the following conditions of use:
 
 1. Students may record lectures or an other classroom activities and use the recordings only for their own course-related purposes.
 2. Students may share the recordings with other students enrolled in the class. Sharing is limited to using the recordings only for their own course-related purposes.
-3. Video and audio recordings made of online lectures may contain inaudible or invisible watermarks to identify shared media: https://support.zoom.us/hc/en-us/articles/360021839031-Audio-Watermark
+3. Video and audio recordings made of online lectures may contain inaudible or invisible watermarks to identify shared media: <https://support.zoom.us/hc/en-us/articles/360021839031-Audio-Watermark>
 4. Students may not post the recordings or other course materials online or distribute them to anyone not enrolled in the class without the advance written permission of the course instructor and, if applicable, any students whose voice or image is included in the recordings.
 5. Any student violating the conditions described above may face academic disciplinary sanctions.
