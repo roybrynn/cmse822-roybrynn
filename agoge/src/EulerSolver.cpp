@@ -2,6 +2,9 @@
 #include "Field3D.hpp"
 #include "Config.hpp"
 
+// NEW:
+#include "PerformanceMonitor.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -9,12 +12,8 @@
 namespace agoge {
 namespace euler {
 
-/**
- * @brief Compute pressure from conserved variables.
- *
- * p = (gamma - 1) * [E - 0.5 * rho * (u^2 + v^2 + w^2)]
- */
-static inline double pressure(double rho, double rhou, double rhov, double rhow, double E)
+static inline double pressure(double rho, double rhou, double rhov,
+                              double rhow, double E)
 {
     double gamma_gas = agoge::config::gamma_gas;
     double u = rhou / rho;
@@ -25,11 +24,6 @@ static inline double pressure(double rho, double rhou, double rhov, double rhow,
     return p;
 }
 
-/**
- * @brief Helper to compute gravitational acceleration from phi, if gravField provided.
- *
- * g = - grad(phi). Using simple central differences with periodic indexing for demonstration.
- */
 static inline void computeGravityAccel(const Field3D &gravField,
                                        int i, int j, int k,
                                        double &gx, double &gy, double &gz)
@@ -42,7 +36,6 @@ static inline void computeGravityAccel(const Field3D &gravField,
     double dy = gravField.dy;
     double dz = gravField.dz;
 
-    // Periodic neighbors
     int iL = (i == 0)        ? (Nx - 1) : (i - 1);
     int iR = (i == Nx - 1)   ? 0        : (i + 1);
     int jL = (j == 0)        ? (Ny - 1) : (j - 1);
@@ -76,35 +69,32 @@ static inline void computeGravityAccel(const Field3D &gravField,
 
 void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
 {
-    // Zero out LQ fields
+    // START TIMER for computeL
+    agoge::PerformanceMonitor::instance().startTimer("computeL");
+
     std::fill(LQ.rho .begin(), LQ.rho .end(),  0.0);
     std::fill(LQ.rhou.begin(), LQ.rhou.end(), 0.0);
     std::fill(LQ.rhov.begin(), LQ.rhov.end(), 0.0);
     std::fill(LQ.rhow.begin(), LQ.rhow.end(), 0.0);
     std::fill(LQ.E   .begin(), LQ.E   .end(), 0.0);
-    std::fill(LQ.phi .begin(), LQ.phi .end(), 0.0); // Not used in flux, but zero for safety
+    std::fill(LQ.phi .begin(), LQ.phi .end(), 0.0);
 
-    // For flux calculations
     int Nx = Q.Nx;
     int Ny = Q.Ny;
     int Nz = Q.Nz;
-
     double dx = Q.dx;
     double dy = Q.dy;
     double dz = Q.dz;
 
-    // Loop over each cell
     for(int k = 0; k < Nz; k++) {
         for(int j = 0; j < Ny; j++) {
             for(int i = 0; i < Nx; i++) {
-
-                // Periodic neighbors
-                int iL = (i == 0)        ? (Nx - 1) : (i - 1);
-                int iR = (i == Nx - 1)   ? 0        : (i + 1);
-                int jL = (j == 0)        ? (Ny - 1) : (j - 1);
-                int jR = (j == Ny - 1)   ? 0        : (j + 1);
-                int kL = (k == 0)        ? (Nz - 1) : (k - 1);
-                int kR = (k == Nz - 1)   ? 0        : (k + 1);
+                int iL = (i == 0)      ? (Nx - 1) : (i - 1);
+                int iR = (i == Nx - 1)? 0        : (i + 1);
+                int jL = (j == 0)      ? (Ny - 1) : (j - 1);
+                int jR = (j == Ny - 1)? 0        : (j + 1);
+                int kL = (k == 0)      ? (Nz - 1) : (k - 1);
+                int kR = (k == Nz - 1)? 0        : (k + 1);
 
                 int idxC  = Q.index(i, j, k);
                 int idxXm = Q.index(iL, j, k);
@@ -114,14 +104,12 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                 int idxZm = Q.index(i, j, kL);
                 int idxZp = Q.index(i, j, kR);
 
-                // Load current cell
                 double rhoC  = Q.rho [idxC];
                 double rhouC = Q.rhou[idxC];
                 double rhovC = Q.rhov[idxC];
                 double rhowC = Q.rhow[idxC];
                 double EC    = Q.E   [idxC];
 
-                // X-direction neighbors
                 double rhoXm  = Q.rho [idxXm];
                 double rhoXp  = Q.rho [idxXp];
                 double rhouXm = Q.rhou[idxXm];
@@ -133,7 +121,6 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                 double EXm    = Q.E   [idxXm];
                 double EXp    = Q.E   [idxXp];
 
-                // Y-direction neighbors
                 double rhoYm  = Q.rho [idxYm];
                 double rhoYp  = Q.rho [idxYp];
                 double rhouYm = Q.rhou[idxYm];
@@ -145,7 +132,6 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                 double EYm    = Q.E   [idxYm];
                 double EYp    = Q.E   [idxYp];
 
-                // Z-direction neighbors
                 double rhoZm  = Q.rho [idxZm];
                 double rhoZp  = Q.rho [idxZp];
                 double rhouZm = Q.rhou[idxZm];
@@ -157,7 +143,6 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                 double EZm    = Q.E   [idxZm];
                 double EZp    = Q.E   [idxZp];
 
-                // Flux in x-direction
                 auto fluxX = [&](double r, double ru, double rv, double rw, double e){
                     double pcell = pressure(r, ru, rv, rw, e);
                     double u = ru / r;
@@ -169,18 +154,16 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                         (e + pcell)*u
                     };
                 };
-
                 auto FXm = fluxX(rhoXm, rhouXm, rhovXm, rhowXm, EXm);
                 auto FXp = fluxX(rhoXp, rhouXp, rhovXp, rhowXp, EXp);
-
                 double inv2dx = 1.0/(2.0*dx);
+
                 double dFxdx_rho  = (FXp[0] - FXm[0]) * inv2dx;
                 double dFxdx_rhou = (FXp[1] - FXm[1]) * inv2dx;
                 double dFxdx_rhov = (FXp[2] - FXm[2]) * inv2dx;
                 double dFxdx_rhow = (FXp[3] - FXm[3]) * inv2dx;
                 double dFxdx_E    = (FXp[4] - FXm[4]) * inv2dx;
 
-                // Flux in y-direction
                 auto fluxY = [&](double r, double ru, double rv, double rw, double e){
                     double pcell = pressure(r, ru, rv, rw, e);
                     double v = rv / r;
@@ -192,18 +175,16 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                         (e + pcell)*v
                     };
                 };
-
                 auto FYm = fluxY(rhoYm, rhouYm, rhovYm, rhowYm, EYm);
                 auto FYp = fluxY(rhoYp, rhouYp, rhovYp, rhowYp, EYp);
-
                 double inv2dy = 1.0/(2.0*dy);
+
                 double dFydy_rho  = (FYp[0] - FYm[0]) * inv2dy;
                 double dFydy_rhou = (FYp[1] - FYm[1]) * inv2dy;
                 double dFydy_rhov = (FYp[2] - FYm[2]) * inv2dy;
                 double dFydy_rhow = (FYp[3] - FYm[3]) * inv2dy;
                 double dFydy_E    = (FYp[4] - FYm[4]) * inv2dy;
 
-                // Flux in z-direction
                 auto fluxZ = [&](double r, double ru, double rv, double rw, double e){
                     double pcell = pressure(r, ru, rv, rw, e);
                     double w = rw / r;
@@ -215,11 +196,10 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                         (e + pcell)*w
                     };
                 };
-
                 auto FZm = fluxZ(rhoZm, rhouZm, rhovZm, rhowZm, EZm);
                 auto FZp = fluxZ(rhoZp, rhouZp, rhovZp, rhowZp, EZp);
-
                 double inv2dz = 1.0/(2.0*dz);
+
                 double dFzdz_rho  = (FZp[0] - FZm[0]) * inv2dz;
                 double dFzdz_rhou = (FZp[1] - FZm[1]) * inv2dz;
                 double dFzdz_rhov = (FZp[2] - FZm[2]) * inv2dz;
@@ -232,11 +212,9 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                 double rhs_rhow = - (dFxdx_rhow + dFydy_rhow + dFzdz_rhow);
                 double rhs_E    = - (dFxdx_E    + dFydy_E    + dFzdz_E   );
 
-                // Gravity source
                 if(gravField) {
                     double gx=0.0, gy=0.0, gz=0.0;
                     computeGravityAccel(*gravField, i, j, k, gx, gy, gz);
-
                     rhs_rhou += rhoC * gx;
                     rhs_rhov += rhoC * gy;
                     rhs_rhow += rhoC * gz;
@@ -247,7 +225,6 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
                     rhs_E += rhoC * (u*gx + v*gy + w*gz);
                 }
 
-                // Store in LQ
                 LQ.rho [idxC] = rhs_rho;
                 LQ.rhou[idxC] = rhs_rhou;
                 LQ.rhov[idxC] = rhs_rhov;
@@ -256,16 +233,21 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField)
             }
         }
     }
+
+    // STOP TIMER for computeL
+    agoge::PerformanceMonitor::instance().stopTimer("computeL");
 }
 
 void runRK2(Field3D &Q, double dt)
 {
+    agoge::PerformanceMonitor::instance().startTimer("runRK2");
+
     Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
     Field3D LQ   (Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
     Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
 
     // Stage 1
-    computeL(Q, LQ, nullptr); // or pass gravity field if you store it in Q
+    computeL(Q, LQ, nullptr); // If you store gravity in Q, pass &Q
     for(size_t n = 0; n < Q.rho.size(); ++n) {
         Qtemp.rho [n]  = Q.rho [n]  + dt * LQ.rho [n];
         Qtemp.rhou[n]  = Q.rhou[n] + dt * LQ.rhou[n];
@@ -275,7 +257,7 @@ void runRK2(Field3D &Q, double dt)
     }
 
     // Stage 2
-    computeL(Qtemp, LQtemp, nullptr); // or pass gravity field if needed
+    computeL(Qtemp, LQtemp, nullptr); // If you store gravity in Q, pass &Qtemp
     for(size_t n = 0; n < Q.rho.size(); ++n) {
         Q.rho [n]  = 0.5 * ( Q.rho [n]  + Qtemp.rho [n]  + dt * LQtemp.rho [n] );
         Q.rhou[n]  = 0.5 * ( Q.rhou[n] + Qtemp.rhou[n] + dt * LQtemp.rhou[n] );
@@ -283,11 +265,13 @@ void runRK2(Field3D &Q, double dt)
         Q.rhow[n]  = 0.5 * ( Q.rhow[n] + Qtemp.rhow[n] + dt * LQtemp.rhow[n] );
         Q.E   [n]  = 0.5 * ( Q.E   [n]  + Qtemp.E   [n]  + dt * LQtemp.E   [n] );
     }
+
+    agoge::PerformanceMonitor::instance().stopTimer("runRK2");
 }
 
 double computeTimeStep(const Field3D &Q, double cfl)
 {
-    // Scan all cells for maximum wave speed
+    agoge::PerformanceMonitor::instance().startTimer("computeTimeStep");
     double maxSpeed = 0.0;
     double gamma_gas = agoge::config::gamma_gas;
 
@@ -305,11 +289,7 @@ double computeTimeStep(const Field3D &Q, double cfl)
                 double rw = Q.rhow[idx];
                 double e  = Q.E   [idx];
 
-                if(r <= 0.0) {
-                    // Avoid negative density or divide-by-zero.
-                    // You could handle error or skip.
-                    continue;
-                }
+                if(r <= 0.0) continue;
 
                 double u = ru / r;
                 double v = rv / r;
@@ -317,12 +297,9 @@ double computeTimeStep(const Field3D &Q, double cfl)
                 double speed = std::sqrt(u*u + v*v + w*w);
 
                 double p = pressure(r, ru, rv, rw, e);
-                if(p < 0.0) {
-                    // Negative pressure is unphysical. Handle or skip.
-                    continue;
-                }
+                if(p < 0.0) continue;
 
-                double a = std::sqrt(gamma_gas * p / r); // Sound speed
+                double a = std::sqrt(gamma_gas * p / r);
                 double localWave = speed + a;
                 if(localWave > maxSpeed) {
                     maxSpeed = localWave;
@@ -331,15 +308,14 @@ double computeTimeStep(const Field3D &Q, double cfl)
         }
     }
 
-    if(maxSpeed < 1.e-14) {
-        // If the flow is effectively stationary, choose a small dt anyway
-        return 1.e20; // or something large if there's no motion
+    double minDx = std::min({Q.dx, Q.dy, Q.dz});
+    double dt = 1.e20;
+    if(maxSpeed > 1.e-14) {
+        dt = cfl * (minDx / maxSpeed);
     }
 
-    // min cell size:
-    double minDx = std::min({Q.dx, Q.dy, Q.dz});
-
-    return cfl * (minDx / maxSpeed);
+    agoge::PerformanceMonitor::instance().stopTimer("computeTimeStep");
+    return dt;
 }
 
 } // namespace euler

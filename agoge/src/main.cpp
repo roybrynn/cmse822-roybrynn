@@ -6,14 +6,14 @@
 #include "HDF5_IO.hpp"
 #include "Config.hpp"
 
-/**
- * @file main.cpp
- * @brief Main driver for the Agoge solver with adaptive time stepping.
- */
+// NEW:
+#include "PerformanceMonitor.hpp"
 
 int main(int argc, char* argv[])
 {
-    // Parse domain parameters (optionally from cmd line)
+    // Start a timer for the entire main function (optional)
+    agoge::PerformanceMonitor::instance().startTimer("main");
+
     int Nx = 64, Ny = 64, Nz = 64;
     double Lx = 1.0, Ly = 1.0, Lz = 1.0;
     if (argc > 3) {
@@ -36,10 +36,8 @@ int main(int argc, char* argv[])
               << "Physical lengths: " << Lx << " x " << Ly << " x " << Lz << "\n"
               << "Cell sizes: " << dx << ", " << dy << ", " << dz << "\n";
 
-    // Create Field3D
     agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz);
 
-    // Simple initialization
     double rho0 = 1.0;
     double p0   = 1.0;
     double E0   = p0 / (agoge::config::gamma_gas - 1.0);
@@ -49,9 +47,9 @@ int main(int argc, char* argv[])
             for(int i = 0; i < Nx; ++i) {
                 int idx = Q.index(i,j,k);
 
-                double x = (i + 0.5) * dx;
-                double y = (j + 0.5) * dy;
-                double z = (k + 0.5) * dz;
+                double x = (i + 0.5)*dx;
+                double y = (j + 0.5)*dy;
+                double z = (k + 0.5)*dz;
 
                 double cx = 0.5 * Lx;
                 double cy = 0.5 * Ly;
@@ -59,8 +57,8 @@ int main(int argc, char* argv[])
                 double r2 = (x - cx)*(x - cx)
                           + (y - cy)*(y - cy)
                           + (z - cz)*(z - cz);
-                double radius2 = 0.01; // e.g., sphere radius=0.1 => 0.1^2=0.01
 
+                double radius2 = 0.01;
                 double local_rho = (r2 < radius2) ? (rho0 + 0.2*rho0) : rho0;
 
                 Q.rho [idx] = local_rho;
@@ -73,24 +71,24 @@ int main(int argc, char* argv[])
         }
     }
 
-    // Time-stepping
     int nSteps = 500;
-    double cflVal = 0.5; // for example
+    double cflVal = 0.5;
+
     std::cout << "Beginning time-stepping with nSteps=" << nSteps
               << ", cfl=" << cflVal << "\n"
               << "Self-gravity is "
               << (agoge::config::use_gravity ? "ENABLED" : "DISABLED") << "\n";
 
     for(int step = 0; step < nSteps; ++step) {
-        // If gravity is enabled, solve Poisson
+        // If gravity
         if (agoge::config::use_gravity) {
             agoge::gravity::solvePoissonFFT(Q);
         }
 
-        // Compute adaptive dt from the CFL condition
+        // Compute dt from the CFL condition
         double dt = agoge::euler::computeTimeStep(Q, cflVal);
 
-        // Perform a two-stage RK2 step
+        // Integrate
         agoge::euler::runRK2(Q, dt);
 
         if(step % 50 == 0) {
@@ -99,12 +97,16 @@ int main(int argc, char* argv[])
         }
     }
 
-    // Write final state
     std::string outFile = "agoge_final.h5";
     agoge::io::writeFieldHDF5(Q, outFile);
-
     std::cout << "Simulation finished. Final data written to: "
               << outFile << std::endl;
+
+    // Stop main timer
+    agoge::PerformanceMonitor::instance().stopTimer("main");
+
+    // Print performance report
+    agoge::PerformanceMonitor::instance().printReport();
 
     return 0;
 }
