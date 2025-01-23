@@ -1,5 +1,5 @@
 #include "HDF5_IO.hpp"
-#include "Field3D.hpp"
+#include "Field3d.hpp"
 
 #include <H5Cpp.h>
 #include <iostream>

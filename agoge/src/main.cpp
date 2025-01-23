@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 // Agoge core headers
-#include "Field3D.hpp"
+#include "Field3d.hpp"
 #include "EulerSolver.hpp"
 #include "GravitySolver.hpp"
 #include "HDF5_IO.hpp"
@@ -11,10 +11,15 @@
 
 // Problem-based approach: interface & registry
 #include "../problems/Problem.hpp"
-#include "../problems/ProblemRegistry.hpp"
+#include "../problems/ProblemRegistry.cpp"
 
 // Performance monitoring
 #include "PerformanceMonitor.hpp"
+
+// Choose the gravity solver method
+agoge::gravity::GravityMethod method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
+// Alternatively:
+// agoge::gravity::GravityMethod method = agoge::gravity::GravityMethod::NAIVE_DFT;
 
 int main(int argc, char** argv)
 {
@@ -86,9 +91,9 @@ int main(int argc, char** argv)
     for (int step = 0; step < nSteps; ++step) {
         // If gravity is on, solve Poisson's equation
         if (gravityEnabled) {
-            agoge::PerformanceMonitor::instance().startTimer("solvePoissonFFT");
-            agoge::gravity::solvePoissonFFT(Q);
-            agoge::PerformanceMonitor::instance().stopTimer("solvePoissonFFT");
+            agoge::PerformanceMonitor::instance().startTimer("solvePoisson");
+            agoge::gravity::solvePoisson(Q, method);
+            agoge::PerformanceMonitor::instance().stopTimer("solvePoisson");
         }
 
         // Compute adaptive dt from Euler solver & CFL

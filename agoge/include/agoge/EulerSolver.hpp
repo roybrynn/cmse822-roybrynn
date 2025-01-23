@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Field3D.hpp"
+#include "Field3d.hpp"
 
 /**
  * @file EulerSolver.hpp
