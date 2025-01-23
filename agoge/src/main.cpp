@@ -9,7 +9,7 @@
 #include "HDF5_IO.hpp"
 #include "Config.hpp"
 
-// Problem-based approach: interface & factory
+// Problem-based approach: interface & registry
 #include "../problems/Problem.hpp"
 #include "../problems/ProblemRegistry.hpp"
 
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
         Lz = std::atof(argv[7]);
     }
 
-    // 4. Create a problem instance via the factory
+    // 4. Create a problem instance via the registry
     auto problem = agoge::problems::createProblem(problemName);
     if (!problem) {
         std::cerr << "Error: Unrecognized problem name '" << problemName << "'\n";
@@ -71,4 +71,51 @@ int main(int argc, char** argv)
 
     // 7. Decide if we use gravity
     bool gravityEnabled = problem->useGravity();
-    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED"
+    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED") << "\n";
+
+    // 8. Basic time-stepping setup
+    int nSteps = 500;
+    double cflVal = 0.5;
+    std::cout << "Beginning time-stepping with nSteps=" << nSteps
+              << ", CFL=" << cflVal << "\n";
+
+    // (Optional) Start a timer for the main time loop
+    agoge::PerformanceMonitor::instance().startTimer("timeLoop");
+
+    // 9. Main time loop
+    for (int step = 0; step < nSteps; ++step) {
+        // If gravity is on, solve Poisson's equation
+        if (gravityEnabled) {
+            agoge::PerformanceMonitor::instance().startTimer("solvePoissonFFT");
+            agoge::gravity::solvePoissonFFT(Q);
+            agoge::PerformanceMonitor::instance().stopTimer("solvePoissonFFT");
+        }
+
+        // Compute adaptive dt from Euler solver & CFL
+        double dt = agoge::euler::computeTimeStep(Q, cflVal);
+
+        // Perform a 2-stage RK2 update
+        agoge::euler::runRK2(Q, dt);
+
+        // Optional progress output
+        if (step % 50 == 0) {
+            std::cout << "Step " << step << "/" << nSteps
+                      << ", dt = " << dt << "\n";
+        }
+    }
+
+    // (Optional) Stop the time loop timer
+    agoge::PerformanceMonitor::instance().stopTimer("timeLoop");
+
+    // 10. Write final state to HDF5
+    agoge::io::writeFieldHDF5(Q, "agoge_final.h5");
+    std::cout << "Simulation finished. Final data written to agoge_final.h5\n";
+
+    // Stop overall main timer
+    agoge::PerformanceMonitor::instance().stopTimer("main");
+
+    // Print a performance report from PerformanceMonitor
+    agoge::PerformanceMonitor::instance().printReport();
+
+    return 0;
+}

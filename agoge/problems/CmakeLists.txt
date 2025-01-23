@@ -1,0 +1,18 @@
+# In agoge/problems/CMakeLists.txt
+file(GLOB PROBLEM_SOURCES
+    "ProblemRegistry.cpp"
+    "SodShockTube.cpp"
+    "GravityCollapse.cpp"
+
+    # etc.
+)
+
+add_library(agoge_problems ${PROBLEM_SOURCES})
+
+target_include_directories(agoge_problems PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(agoge_problems PRIVATE agoge_lib)
+
+# or link to your main solver library
