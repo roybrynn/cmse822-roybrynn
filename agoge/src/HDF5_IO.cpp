@@ -1,55 +1,45 @@
+// HDF5_IO.cpp
 #include "HDF5_IO.hpp"
-#include "Field3d.hpp"
 
 #include <H5Cpp.h>
+
 #include <iostream>
 #include <vector>
+
+#include "Field3d.hpp"
 
 namespace agoge {
 namespace io {
 
-void writeFieldHDF5(const Field3D &Q, const std::string &filename)
-{
+void writeFieldHDF5(const Field3D &Q, const std::string &filename) {
     using namespace H5;
 
     // Create / open the file (truncate if exists)
     H5File file(filename.c_str(), H5F_ACC_TRUNC);
 
     // Dimensions for the 3D datasets: (Nz, Ny, Nx)
-    // According to the problem statement, shape is (Nz, Ny, Nx)
-    hsize_t dims[3];
-    dims[0] = static_cast<hsize_t>(Q.Nz);
-    dims[1] = static_cast<hsize_t>(Q.Ny);
-    dims[2] = static_cast<hsize_t>(Q.Nx);
+    hsize_t dims[3] = {static_cast<hsize_t>(Q.Nz), static_cast<hsize_t>(Q.Ny),
+                       static_cast<hsize_t>(Q.Nx)};
 
     // Create a data space for the 3D shape
     DataSpace dataspace(3, dims);
 
     // Helper lambda to write a 3D dataset from Q.* vectors
     auto writeDataset = [&](const std::string &name,
-                            const std::vector<double> &data)
-    {
+                            const std::vector<double> &data) {
         // Create the dataset
-        DataSet dataset = file.createDataSet(
-            name, PredType::NATIVE_DOUBLE, dataspace);
+        DataSet dataset =
+            file.createDataSet(name, PredType::NATIVE_DOUBLE, dataspace);
 
-        // We need to transform the data from (i + Nx*(j + Ny*k)) indexing
-        // to the shape (k, j, i) = (Nz, Ny, Nx) in row-major order.
-        // We'll allocate a temporary buffer with that reordering.
-
+        // Rearrange data from (i + Nx*(j + Ny*k)) to (k, j, i)
         std::vector<double> buffer(data.size());
-        // For each (k, j, i), copy data from the 1D index in Q
-        // to the (k*Ny*Nx + j*Nx + i) offset in buffer.
-
-        size_t idxBuf = 0;
         for (int k = 0; k < Q.Nz; ++k) {
             for (int j = 0; j < Q.Ny; ++j) {
                 for (int i = 0; i < Q.Nx; ++i) {
-                    // 1D index in Q.* is i + Nx*(j + Ny*k)
-                    int idxQ = i + Q.Nx * (j + Q.Ny * k);
-                    idxBuf = static_cast<size_t>(k) * (Q.Ny * Q.Nx)
-                           + static_cast<size_t>(j) * Q.Nx
-                           + static_cast<size_t>(i);
+                    size_t idxQ = i + Q.Nx * (j + Q.Ny * k);
+                    size_t idxBuf = static_cast<size_t>(k) * (Q.Ny * Q.Nx) +
+                                    static_cast<size_t>(j) * Q.Nx +
+                                    static_cast<size_t>(i);
                     buffer[idxBuf] = data[idxQ];
                 }
             }
@@ -60,81 +50,102 @@ void writeFieldHDF5(const Field3D &Q, const std::string &filename)
     };
 
     // Write each field
-    writeDataset("rho",  Q.rho );
+    writeDataset("rho", Q.rho);
     writeDataset("rhou", Q.rhou);
     writeDataset("rhov", Q.rhov);
     writeDataset("rhow", Q.rhow);
-    writeDataset("E",    Q.E   );
-    writeDataset("phi",  Q.phi );
+    writeDataset("E", Q.E);
+    writeDataset("phi", Q.phi);
 
-    // Optionally set attributes for domain sizes
+    // Store grid information as attributes at the root
     {
-        // We can store Nx, Ny, Nz, dx, dy, dz as attributes on the root group.
-        // Or you could store them on each dataset. We'll store on root for convenience.
-        Group root = file.openGroup("/");
-        // 1D attribute with 3 elements for Nx, Ny, Nz
-        {
-            hsize_t adims[1] = {3};
-            DataSpace aspace(1, adims);
-            int domain_dims[3] = {Q.Nx, Q.Ny, Q.Nz};
-            Attribute attrDD = root.createAttribute(
-                "domain_dimensions", PredType::NATIVE_INT, aspace);
-            attrDD.write(PredType::NATIVE_INT, domain_dims);
-        }
-        // Another 1D attribute for dx, dy, dz
-        {
-            hsize_t adims[1] = {3};
-            DataSpace aspace(1, adims);
-            double domain_dx[3] = {Q.dx, Q.dy, Q.dz};
-            Attribute attrDX = root.createAttribute(
-                "cell_size", PredType::NATIVE_DOUBLE, aspace);
-            attrDX.write(PredType::NATIVE_DOUBLE, domain_dx);
-        }
+        // Define a group for grid metadata
+        Group grid = file.createGroup("/grid");
+
+        // Domain dimensions
+        hsize_t adims_dims[1] = {3};
+        DataSpace attr_space_dims(1, adims_dims);
+        Attribute attr_dims = grid.createAttribute(
+            "domain_dimensions", PredType::NATIVE_INT, attr_space_dims);
+        int domain_dims[3] = {Q.Nx, Q.Ny, Q.Nz};
+        attr_dims.write(PredType::NATIVE_INT, domain_dims);
+
+        // Cell sizes
+        hsize_t adims_size[1] = {3};
+        DataSpace attr_space_size(1, adims_size);
+        Attribute attr_size = grid.createAttribute(
+            "cell_size", PredType::NATIVE_DOUBLE, attr_space_size);
+        double cell_sizes[3] = {Q.dx, Q.dy, Q.dz};
+        attr_size.write(PredType::NATIVE_DOUBLE, cell_sizes);
+
+        // Bounding box (assuming origin at (0,0,0))
+        hsize_t adims_bbox[2] = {3, 2};  // 3 dimensions, each with min and max
+        DataSpace attr_space_bbox(2, adims_bbox);
+        Attribute attr_bbox = grid.createAttribute(
+            "bounding_box", PredType::NATIVE_DOUBLE, attr_space_bbox);
+        double bbox[3][2] = {
+            {0.0, Q.Nx * Q.dx}, {0.0, Q.Ny * Q.dy}, {0.0, Q.Nz * Q.dz}};
+        attr_bbox.write(PredType::NATIVE_DOUBLE, bbox);
     }
 
     std::cout << "HDF5 file written to: " << filename << std::endl;
 }
 
-void readFieldHDF5(Field3D &Q, const std::string &filename)
-{
+void readFieldHDF5(Field3D &Q, const std::string &filename) {
     using namespace H5;
 
     // Open the file in read-only mode
     H5File file(filename.c_str(), H5F_ACC_RDONLY);
 
-    // We assume the shape is stored as (Nz, Ny, Nx). Let's read one dataset
-    // to infer the shape, or assume Q.Nx, Q.Ny, Q.Nz are already set externally.
+    // Read grid metadata
+    Group grid = file.openGroup("/grid");
 
-    // Helper lambda for reading one 3D dataset
-    auto readDataset = [&](const std::string &name,
-                           std::vector<double> &data)
-    {
+    // Read domain dimensions
+    Attribute attr_dims = grid.openAttribute("domain_dimensions");
+    int domain_dims[3];
+    attr_dims.read(PredType::NATIVE_INT, domain_dims);
+    Q.Nx = domain_dims[0];
+    Q.Ny = domain_dims[1];
+    Q.Nz = domain_dims[2];
+
+    // Read cell sizes
+    Attribute attr_size = grid.openAttribute("cell_size");
+    double cell_sizes[3];
+    attr_size.read(PredType::NATIVE_DOUBLE, cell_sizes);
+    Q.dx = cell_sizes[0];
+    Q.dy = cell_sizes[1];
+    Q.dz = cell_sizes[2];
+
+    // Read bounding box (optional, for verification)
+    Attribute attr_bbox = grid.openAttribute("bounding_box");
+    double bbox[3][2];
+    attr_bbox.read(PredType::NATIVE_DOUBLE, bbox);
+    // You can use bbox if needed
+
+    // Dimensions for the 3D datasets: (Nz, Ny, Nx)
+    hsize_t dims[3];
+    dims[0] = static_cast<hsize_t>(Q.Nz);
+    dims[1] = static_cast<hsize_t>(Q.Ny);
+    dims[2] = static_cast<hsize_t>(Q.Nx);
+
+    // Create a data space for the 3D shape
+    DataSpace dataspace(3, dims);
+
+    // Helper lambda to read a 3D dataset into Q.* vectors
+    auto readDataset = [&](const std::string &name, std::vector<double> &data) {
+        // Open the dataset
         DataSet dataset = file.openDataSet(name);
-        DataSpace filespace = dataset.getSpace();
-
-        // Check that the dataset shape matches (Nz, Ny, Nx)
-        const int rank = filespace.getSimpleExtentNdims();
-        if (rank != 3) {
-            throw std::runtime_error("Dataset rank != 3 in " + name);
-        }
-        hsize_t dims[3];
-        filespace.getSimpleExtentDims(dims, nullptr);
-        if (static_cast<int>(dims[0]) != Q.Nz ||
-            static_cast<int>(dims[1]) != Q.Ny ||
-            static_cast<int>(dims[2]) != Q.Nx) {
-            throw std::runtime_error("Dataset shape mismatch in " + name);
-        }
-
+        // Read the data into a buffer
         std::vector<double> buffer(Q.Nx * Q.Ny * Q.Nz);
         dataset.read(buffer.data(), PredType::NATIVE_DOUBLE);
 
-        // Now map buffer (k, j, i) -> data[i + Nx*(j + Ny*k)]
+        // Rearrange data from (k, j, i) to (i + Nx*(j + Ny*k))
         for (int k = 0; k < Q.Nz; ++k) {
             for (int j = 0; j < Q.Ny; ++j) {
                 for (int i = 0; i < Q.Nx; ++i) {
-                    size_t idxBuf = static_cast<size_t>(k) * (Q.Ny * Q.Nx)
-                                  + static_cast<size_t>(j) * Q.Nx
-                                  + static_cast<size_t>(i);
+                    size_t idxBuf = static_cast<size_t>(k) * (Q.Ny * Q.Nx) +
+                                    static_cast<size_t>(j) * Q.Nx +
+                                    static_cast<size_t>(i);
                     int idxQ = i + Q.Nx * (j + Q.Ny * k);
                     data[idxQ] = buffer[idxBuf];
                 }
@@ -143,43 +154,15 @@ void readFieldHDF5(Field3D &Q, const std::string &filename)
     };
 
     // Read each field
-    readDataset("rho",  Q.rho );
+    readDataset("rho", Q.rho);
     readDataset("rhou", Q.rhou);
     readDataset("rhov", Q.rhov);
     readDataset("rhow", Q.rhow);
-    readDataset("E",    Q.E   );
-    readDataset("phi",  Q.phi );
-
-    // Optionally read attributes for domain sizes
-    {
-        Group root = file.openGroup("/");
-        // domain_dimensions
-        if (root.attrExists("domain_dimensions")) {
-            Attribute attrDD = root.openAttribute("domain_dimensions");
-            int domain_dims[3];
-            attrDD.read(PredType::NATIVE_INT, domain_dims);
-            if (domain_dims[0] != Q.Nx ||
-                domain_dims[1] != Q.Ny ||
-                domain_dims[2] != Q.Nz) {
-                std::cerr << "Warning: Mismatch between Q.Nx,Ny,Nz and HDF5 domain_dimensions.\n";
-            }
-        }
-        // cell_size
-        if (root.attrExists("cell_size")) {
-            Attribute attrDX = root.openAttribute("cell_size");
-            double domain_dx[3];
-            attrDX.read(PredType::NATIVE_DOUBLE, domain_dx);
-            // Check or store them if desired
-            if (domain_dx[0] != Q.dx ||
-                domain_dx[1] != Q.dy ||
-                domain_dx[2] != Q.dz) {
-                std::cerr << "Warning: Mismatch between Q.dx,dy,dz and HDF5 cell_size.\n";
-            }
-        }
-    }
+    readDataset("E", Q.E);
+    readDataset("phi", Q.phi);
 
     std::cout << "HDF5 file read from: " << filename << std::endl;
 }
 
-} // namespace io
-} // namespace agoge
+}  // namespace io
+}  // namespace agoge

@@ -83,3 +83,12 @@ agoge/CMakeCache.txt
 agoge/CMakeFiles/
 agoge/cmake_install.cmake
 agoge/build/*
+
+# Images
+*.png
+
+# HDF5 output
+*.h5
+
+# binary
+agoge_run
