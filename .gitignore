@@ -82,5 +82,4 @@ ehthumbs.db
 agoge/CMakeCache.txt
 agoge/CMakeFiles/
 agoge/cmake_install.cmake
-agoge/Makefile
 agoge/build/*
