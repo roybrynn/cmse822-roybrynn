@@ -3,7 +3,7 @@
 #include <vector>
 
 /**
- * @file Field3D.hpp
+ * @file Field3d.hpp
  * @brief Declaration of the Field3D structure for the Agoge solver.
  *
  * This structure stores the primary 3D fields (density, momentum components,

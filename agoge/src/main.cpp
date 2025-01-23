@@ -11,7 +11,7 @@
 
 // Problem-based approach: interface & registry
 #include "../problems/Problem.hpp"
-#include "../problems/ProblemRegistry.cpp"
+#include "../problems/ProblemRegistry.hpp"
 
 // Performance monitoring
 #include "PerformanceMonitor.hpp"

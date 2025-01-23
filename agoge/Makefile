@@ -1,7 +1,21 @@
 # Compiler and flags
 CXX := clang++
-CXXFLAGS := -std=c++20 -O3 -Iinclude/agoge -I/Library/Developer/CommandLineTools/usr/include -mmacosx-version-min=10.7 -stdlib=libc++ -Wall -Wextra 
-LDFLAGS := -L/usr/lib
+SDK_PATH := $(shell xcrun --show-sdk-path)
+HOMEBREW_PREFIX := $(shell brew --prefix)
+HDF5_INCLUDE := $(HOMEBREW_PREFIX)/include
+HDF5_LIB := $(HOMEBREW_PREFIX)/lib
+
+CXXFLAGS := -std=c++20 -O3 \
+            -Iinclude/agoge \
+            -I$(SDK_PATH)/usr/include \
+            -I$(SDK_PATH)/usr/include/c++/v1 \
+            -I$(HDF5_INCLUDE) \
+            -isysroot $(SDK_PATH) \
+            -mmacosx-version-min=10.15 \
+            -stdlib=libc++ \
+            -Wall -Wextra 
+
+LDFLAGS := -L/usr/lib -L$(HDF5_LIB) -v
 LDLIBS := -lhdf5_cpp -lhdf5 # Add more libraries if needed
 
 # Directories
