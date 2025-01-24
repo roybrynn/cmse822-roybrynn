@@ -16,110 +16,111 @@
 // Performance monitoring
 #include "PerformanceMonitor.hpp"
 
-// Choose the gravity solver method
+// Our parameter system
+#include "ParameterSystem.hpp"
+
+// Choose the gravity solver method globally or pass it in:
 agoge::gravity::GravityMethod method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
-// Alternatively:
-// agoge::gravity::GravityMethod method = agoge::gravity::GravityMethod::NAIVE_DFT;
 
 int main(int argc, char** argv)
 {
     // Start timing the entire main program
     agoge::PerformanceMonitor::instance().startTimer("main");
 
-    // 1. Check usage: we expect at least 1 argument = problem name
+    // Create a ParameterSystem with built-in defaults
+    agoge::ParameterSystem params;
+
+    // We might expect 2 arguments:
+    // 1) Problem name
+    // 2) Optional YAML file for overrides
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0]
-                  << " <problemName> [Nx Ny Nz Lx Ly Lz]\n"
-                  << "Example: ./agoge_run sod 64 1 1 1.0 1.0 1.0\n"
-                  << "Available problems might be: sod, collapse, etc.\n";
+                  << " <problemName> [yaml_file]\n"
+                  << "Example: ./agoge_run sod input.yaml\n"
+                  << "Or if no YAML file, just do: ./agoge_run sod\n";
         return 1;
     }
 
-    // 2. Parse problem name
+    // Arg1 => problem name
     std::string problemName = argv[1];
 
-    // 3. Parse optional grid and domain arguments
-    int Nx = 64, Ny = 64, Nz = 64;
-    double Lx = 1.0, Ly = 1.0, Lz = 1.0;
-
-    // If we have at least 4 additional args, interpret them as Nx, Ny, Nz
-    if (argc > 4) {
-        Nx = std::atoi(argv[2]);
-        Ny = std::atoi(argv[3]);
-        Nz = std::atoi(argv[4]);
-    }
-    // If we have at least 7 additional args, interpret them as Lx, Ly, Lz
-    if (argc > 7) {
-        Lx = std::atof(argv[5]);
-        Ly = std::atof(argv[6]);
-        Lz = std::atof(argv[7]);
+    // Arg2 => optional YAML
+    if(argc >= 3) {
+        std::string yamlFile = argv[2];
+        bool ok = params.readYAML(yamlFile);
+        if(!ok) {
+            std::cerr << "[main] WARNING: Could not parse " << yamlFile << "\n";
+        }
     }
 
-    // 4. Create a problem instance via the registry
+    // 1) Create the problem
     auto problem = agoge::problems::createProblem(problemName);
-    if (!problem) {
+    if(!problem) {
         std::cerr << "Error: Unrecognized problem name '" << problemName << "'\n";
         return 1;
     }
-
     std::cout << "Selected problem: " << problem->name() << "\n";
 
-    // 5. Allocate the Field3D
+    // 2) Get Nx, Ny, Nz, etc. from ParameterSystem
+    int Nx = params.getInt("nx");
+    int Ny = params.getInt("ny");
+    int Nz = params.getInt("nz");
+
+    // For domain, we can use e.g. "domain: [1.0, 2.0, 3.0]"
+    auto domainVec = params.getDoubleList("domain"); // default was [1.0,1.0,1.0]
+    if(domainVec.size() < 3) {
+        std::cerr << "[main] WARNING: domain list < 3 elements, using defaults.\n";
+        domainVec = {1.0, 1.0, 1.0};
+    }
+    double Lx = domainVec[0];
+    double Ly = domainVec[1];
+    double Lz = domainVec[2];
+
+    // 3) Allocate the Field3D
     double dx = Lx / Nx;
     double dy = Ly / Ny;
     double dz = Lz / Nz;
-
     agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz);
 
-    // 6. Initialize the field with the chosen problem setup
+    // 4) Initialize with the chosen problem
     problem->initialize(Q);
 
-    // 7. Decide if we use gravity
-    bool gravityEnabled = problem->useGravity();
+    // 5) Gravity usage
+    bool gravityEnabled = params.getBool("use_gravity");
+    // or check problem->useGravity(), or combine them
     std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED") << "\n";
 
-    // 8. Basic time-stepping setup
-    int nSteps = 500;
-    double cflVal = 0.5;
+    // 6) Time stepping
+    int nSteps = params.getInt("nsteps"); // default was 500
+    double cflVal = params.getDouble("cfl"); // default 0.5
+
     std::cout << "Beginning time-stepping with nSteps=" << nSteps
               << ", CFL=" << cflVal << "\n";
 
-    // (Optional) Start a timer for the main time loop
+    // Time loop
     agoge::PerformanceMonitor::instance().startTimer("timeLoop");
-
-    // 9. Main time loop
-    for (int step = 0; step < nSteps; ++step) {
-        // If gravity is on, solve Poisson's equation
-        if (gravityEnabled) {
+    for(int step = 0; step < nSteps; ++step) {
+        if(gravityEnabled) {
             agoge::PerformanceMonitor::instance().startTimer("solvePoisson");
             agoge::gravity::solvePoisson(Q, method);
             agoge::PerformanceMonitor::instance().stopTimer("solvePoisson");
         }
-
-        // Compute adaptive dt from Euler solver & CFL
         double dt = agoge::euler::computeTimeStep(Q, cflVal);
-
-        // Perform a 2-stage RK2 update
         agoge::euler::runRK2(Q, dt);
 
-        // Optional progress output
-        if (step % 50 == 0) {
+        if(step % 50 == 0) {
             std::cout << "Step " << step << "/" << nSteps
-                      << ", dt = " << dt << "\n";
+                      << ", dt=" << dt << "\n";
         }
     }
-
-    // (Optional) Stop the time loop timer
     agoge::PerformanceMonitor::instance().stopTimer("timeLoop");
 
-    // 10. Write final state to HDF5
+    // Output
     agoge::io::writeFieldHDF5(Q, "agoge_final.h5");
     std::cout << "Simulation finished. Final data written to agoge_final.h5\n";
 
-    // Stop overall main timer
+    // Stop overall main timer & print report
     agoge::PerformanceMonitor::instance().stopTimer("main");
-
-    // Print a performance report from PerformanceMonitor
     agoge::PerformanceMonitor::instance().printReport();
 
     return 0;

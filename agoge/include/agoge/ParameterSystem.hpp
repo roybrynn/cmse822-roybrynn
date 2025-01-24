@@ -1,9 +1,9 @@
 #pragma once
 
+#include "YamlParser.hpp"
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "YamlParser.hpp"
 
 /**
  * @file ParameterSystem.hpp
@@ -15,16 +15,11 @@ namespace agoge {
 
 /**
  * @class ParameterSystem
- * @brief Holds default parameters and merges them with YAML overrides.
+ * @brief Holds default parameters (internally) and merges them with YAML overrides.
  *
- * Example usage:
+ * Usage:
  *   ParameterSystem params;
- *   // set defaults
- *   params.setDefault("nx", "64");
- *   params.setDefault("cfl", "0.5");
- *   // parse YAML
- *   params.readYAML("input.yaml");
- *   // retrieve as int/double/bool/etc.
+ *   params.readYAML("input.yaml"); // optional
  *   int Nx = params.getInt("nx");
  *   double cflVal = params.getDouble("cfl");
  */
@@ -32,60 +27,41 @@ class ParameterSystem
 {
 public:
     /**
-     * @brief Assign a default raw string value for a parameter key
+     * @brief Constructor that sets default parameters internally
      */
-    void setDefault(const std::string &key, const std::string &rawValue);
+    ParameterSystem();
 
     /**
-     * @brief Load YAML file and override defaults with the YAML content
+     * @brief Load YAML file (optional) and override defaults
      */
     bool readYAML(const std::string &filename);
 
     /**
-     * @brief Retrieve parameter as raw string.
-     *        If not found in either YAML or defaults, return "".
-     */
-    std::string getRaw(const std::string &key) const;
-
-    /**
-     * @brief Retrieve as int
+     * @brief Retrieve as int/double/bool/string/list
      */
     int getInt(const std::string &key) const;
-
-    /**
-     * @brief Retrieve as double
-     */
     double getDouble(const std::string &key) const;
-
-    /**
-     * @brief Retrieve as bool
-     */
     bool getBool(const std::string &key) const;
-
-    /**
-     * @brief Retrieve as string
-     */
     std::string getString(const std::string &key) const;
-
-    /**
-     * @brief Retrieve as a list of double (for YAML lines like: [1.0, 2, 3.5])
-     */
     std::vector<double> getDoubleList(const std::string &key) const;
 
 private:
-    YamlParser parser_; ///< minimal parser for overrides
+    // The minimal parser for overrides
+    YamlParser parser_;
+
+    // default map: key -> raw string
     std::unordered_map<std::string, std::string> defaults_;
 
-    /**
-     * @brief Helper to parse a list from raw string
-     *        e.g. "[1, 2.0, 3.5]"
-     */
+    // Internal getters
+    std::string getRaw(const std::string &key) const;
     std::vector<std::string> parseList(const std::string &raw) const;
+    std::string trim(const std::string &s) const;
 
     /**
-     * @brief trim utility
+     * @brief Helper to set all built-in defaults.
+     *        Called by the constructor.
      */
-    std::string trim(const std::string &s) const;
+    void setDefaults();
 };
 
 } // namespace agoge

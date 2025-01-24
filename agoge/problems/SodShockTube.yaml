@@ -4,6 +4,7 @@ nx: 64
 ny: 1
 nz: 1
 cfl: 0.25
+nsteps: 10000
 use_gravity: false
 problem_name: "sod"
 domain: [2.0, 1.0, 1.0]
