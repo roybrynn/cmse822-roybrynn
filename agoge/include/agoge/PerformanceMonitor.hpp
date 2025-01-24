@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <chrono>
 #include <iostream>
+#include <iomanip> 
 
 /**
  * @file PerformanceMonitor.hpp
@@ -74,33 +75,50 @@ public:
         }
     }
 
-    /**
-     * @brief Print a summary of all timers to stdout.
-     *
-     * Shows total time in seconds, number of calls, and average time in ms.
-     */
-    void printReport() const
-    {
-        std::cout << "\n================= PERFORMANCE REPORT =================\n";
-        std::cout << "Timer Name             Total Time (s)   Calls   Avg (ms)\n";
-        std::cout << "-------------------------------------------------------\n";
+/**
+ * @brief Print a summary of all timers to stdout.
+ *
+ * Shows total time in seconds, number of calls, and average time in ms.
+ */
+void printReport() const
+{
+    // Define column widths
+    const int nameWidth =  16; // Adjust as needed
+    const int timeWidth = 18;
+    const int callsWidth = 10;
+    const int avgWidth = 12;
 
-        for(const auto &pair : timers_) {
-            const auto &name = pair.first;
-            const auto &data = pair.second;
+    std::cout << "\n================= PERFORMANCE REPORT =================\n";
 
-            double totalSec = std::chrono::duration<double>(data.total).count();
-            double avgMs = 0.0;
-            if(data.callCount > 0) {
-                avgMs = (totalSec * 1000.0) / data.callCount;
-            }
-            std::cout << name << "  "
-                      << totalSec << "          "
-                      << data.callCount << "       "
-                      << avgMs << "\n";
+    // Set formatting for headers
+    std::cout << std::left << std::setw(nameWidth) << "Timer Name"
+              << std::right << std::setw(timeWidth) << "Total Time (s)"
+              << std::right << std::setw(callsWidth) << "Calls"
+              << std::right << std::setw(avgWidth) << "Avg (ms)"
+              << "\n";
+
+    std::cout << "-------------------------------------------------------\n";
+
+    // Set formatting for data rows
+    for(const auto &pair : timers_) {
+        const auto &name = pair.first;
+        const auto &data = pair.second;
+
+        double totalSec = std::chrono::duration<double>(data.total).count();
+        double avgMs = 0.0;
+        if(data.callCount > 0) {
+            avgMs = (totalSec * 1000.0) / data.callCount;
         }
-        std::cout << "=======================================================\n\n";
+
+        std::cout << std::left << std::setw(nameWidth) << name
+                  << std::right << std::setw(timeWidth) << std::fixed << std::setprecision(6) << totalSec
+                  << std::right << std::setw(callsWidth) << data.callCount
+                  << std::right << std::setw(avgWidth) << std::fixed << std::setprecision(6) << avgMs
+                  << "\n";
     }
+
+    std::cout << "=======================================================\n\n";
+}
 
 private:
     PerformanceMonitor() = default; // Private constructor for singleton
