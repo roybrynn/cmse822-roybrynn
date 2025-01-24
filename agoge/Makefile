@@ -1,59 +1,122 @@
-# Compiler and flags
-CXX := clang++
-SDK_PATH := $(shell xcrun --show-sdk-path)
-HOMEBREW_PREFIX := $(shell brew --prefix)
-HDF5_INCLUDE := $(HOMEBREW_PREFIX)/include
-HDF5_LIB := $(HOMEBREW_PREFIX)/lib
+# Makefile for Agoge
+# Portable build system for Mac, Linux, Ubuntu, GitHub Codespaces, etc.
+# Designed to be simple and flexible for educational purposes.
 
-CXXFLAGS := -std=c++20 -O3 \
-            -Iinclude/agoge \
-            -I$(SDK_PATH)/usr/include \
-            -I$(SDK_PATH)/usr/include/c++/v1 \
-            -I$(HDF5_INCLUDE) \
-            -isysroot $(SDK_PATH) \
-            -mmacosx-version-min=10.15 \
-            -stdlib=libc++ \
-            -Wall -Wextra 
+# ========================
+# 1. Compiler and Flags
+# ========================
 
-LDFLAGS := -L/usr/lib -L$(HDF5_LIB) -v
-LDLIBS := -lhdf5_cpp -lhdf5 # Add more libraries if needed
+# Allow overriding the compiler via environment variable, else default
+CXX := $(CXX)
+ifeq ($(CXX),)
+    CXX := g++
+endif
 
-# Directories
+# Detect Operating System
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    OS := Mac
+    CXX := clang++ # On Mac, prefer clang++
+else ifeq ($(UNAME_S),Linux)
+    OS := Linux
+    # CXX remains as set above
+else
+    OS := Unknown
+    # Keep default compiler
+endif
+
+# Prefer g++-10 if available
+ifeq ($(shell which g++-10),/usr/bin/g++-10)
+    CXX := g++-10
+endif
+
+# C++ Standard Flag (default to -std=c++20, allow override)
+CXX_STD ?= -std=c++2a
+
+# Compiler Flags
+CXXFLAGS := $(CXX_STD) -O3 -Wall -Wextra -MMD -MP
+
+# HDF5 Flags using pkg-config
+HDF5_CFLAGS := $(shell pkg-config --cflags hdf5_cpp 2>/dev/null)
+HDF5_LIBS := $(shell pkg-config --libs hdf5_cpp 2>/dev/null)
+
+# Fallback if pkg-config fails
+ifeq ($(strip $(HDF5_CFLAGS)),)
+    HDF5_CFLAGS := -I/usr/local/include
+endif
+ifeq ($(strip $(HDF5_LIBS)),)
+    HDF5_LIBS := -lhdf5_cpp -lhdf5
+endif
+
+# Include Paths
+INCLUDES := -Iinclude/agoge $(HDF5_CFLAGS)
+
+# Linker Flags
+LDFLAGS := $(HDF5_LIBS)
+
+# ========================
+# 2. Directories
+# ========================
+
 SRC_DIR := src
 PROBLEMS_DIR := problems
 BUILD_DIR := build
+BUILD_SRC_DIR := $(BUILD_DIR)/src
+BUILD_PROB_DIR := $(BUILD_DIR)/problems
+INCLUDE_DIR := include/agoge
+
+# ========================
+# 3. Sources and Objects
+# ========================
+
+# Source Files
+SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp)
+PROB_FILES := $(wildcard $(PROBLEMS_DIR)/*.cpp)
+
+# Object Files
+OBJ_FILES := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_FILES)) \
+             $(patsubst $(PROBLEMS_DIR)/%.cpp,$(BUILD_PROB_DIR)/%.o,$(PROB_FILES))
+
+# Dependency Files
+DEP_FILES := $(OBJ_FILES:.o=.d)
+
+# ========================
+# 4. Targets
+# ========================
+
+# Executable Name
 TARGET := agoge_run
 
-# Source files
-SOURCES := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(PROBLEMS_DIR)/*.cpp)
-
-# Object files
-OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/src/%.o,$(wildcard $(SRC_DIR)/*.cpp)) \
-           $(patsubst $(PROBLEMS_DIR)/%.cpp,$(BUILD_DIR)/problems/%.o,$(wildcard $(PROBLEMS_DIR)/*.cpp))
-
-# Default target
+# Default Target
 all: $(TARGET)
 
-# Link the target executable
-$(TARGET): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+# Link Target
+$(TARGET): $(OBJ_FILES)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-# Compile source files
-$(BUILD_DIR)/src/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)/src
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+# Compile Source Files
+$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-$(BUILD_DIR)/problems/%.o: $(PROBLEMS_DIR)/%.cpp | $(BUILD_DIR)/problems
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(BUILD_PROB_DIR)/%.o: $(PROBLEMS_DIR)/%.cpp | $(BUILD_PROB_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-# Create build directories
-$(BUILD_DIR)/src:
-	mkdir -p $(BUILD_DIR)/src
+# Create Build Directories
+$(BUILD_SRC_DIR):
+	mkdir -p $(BUILD_SRC_DIR)
 
-$(BUILD_DIR)/problems:
-	mkdir -p $(BUILD_DIR)/problems
+$(BUILD_PROB_DIR):
+	mkdir -p $(BUILD_PROB_DIR)
 
-# Clean build artifacts
+# Include Dependency Files
+-include $(DEP_FILES)
+
+# Clean Target
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
+
+# ========================
+# 5. Phony Targets
+# ========================
 
 .PHONY: all clean
