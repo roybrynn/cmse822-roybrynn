@@ -1,0 +1,9 @@
+# SodShockTube.yaml
+# parameter file for the Sod shock tube problem
+nx: 64
+ny: 1
+nz: 1
+cfl: 0.25
+use_gravity: false
+problem_name: "sod"
+domain: [2.0, 1.0, 1.0]
