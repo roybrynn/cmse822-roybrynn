@@ -5,7 +5,8 @@
 /**
  * @file EulerSolver.hpp
  * @brief Declarations of functions for computing the Euler flux divergence and
- *        performing time integration using Runge-Kutta methods.
+ *        performing time integration using a shock-capturing finite difference
+ * method.
  */
 
 namespace agoge {
@@ -13,7 +14,8 @@ namespace euler {
 
 /**
  * @brief Computes the 3D flux divergence term \(-\nabla \cdot F(Q)\) for the
- * compressible Euler equations using simple finite differences.
+ * compressible Euler equations using a second-order finite-difference scheme,
+ * augmented by artificial viscosity for shock capture.
  *
  * Optionally adds gravitational source terms if \p gravField is provided
  * and contains a valid gravitational potential \(\phi\).
@@ -24,7 +26,8 @@ namespace euler {
  *                       (phi). If non-null, source terms for gravity are added
  *                       to the momentum and energy equations.
  */
-void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField = nullptr);
+void computeL(const Field3D &Q, Field3D &LQ,
+              const Field3D *gravField = nullptr);
 
 /**
  * @brief Performs a two-stage (midpoint) Runge-Kutta time integration on the
@@ -38,10 +41,12 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField = nullptr)
 void runRK2(Field3D &Q, double dt);
 
 /**
- * @brief Computes a stable time step size \(\Delta t\) based on the CFL condition.
+ * @brief Computes a stable time step size \(\Delta t\) based on the CFL
+ * condition.
  *
  * Scans all cells in \p Q, computing local wave speed (|u|+a) to find the
- * maximum wave speed. Returns \(\Delta t = \text{cfl} \times \min(dx,dy,dz) / \max(\text{wave speed})\).
+ * maximum wave speed. Returns \(\Delta t = \text{cfl} \times \min(dx,dy,dz) /
+ * \max(\text{wave speed})\).
  *
  * @param[in] Q   The current state field (density, momentum, energy).
  * @param[in] cfl The desired CFL number (e.g., 0.5).
@@ -49,5 +54,5 @@ void runRK2(Field3D &Q, double dt);
  */
 double computeTimeStep(const Field3D &Q, double cfl);
 
-} // namespace euler
-} // namespace agoge
+}  // namespace euler
+}  // namespace agoge
