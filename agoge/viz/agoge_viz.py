@@ -126,7 +126,7 @@ def plot_line(data, field="rho", axis="x", index_j=0, index_k=0, figsize=(6,4)):
         raise ValueError(f"Unknown axis '{axis}'")
 
     plt.figure(figsize=figsize)
-    plt.plot(xvals, line, label=field)
+    plt.plot(xvals, line, '-x', label=field)
     plt.xlabel(f"{label_axis}-coordinate")
     plt.ylabel(field)
     plt.title(f"Line plot of {field} along axis={axis}")

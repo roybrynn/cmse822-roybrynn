@@ -36,5 +36,11 @@ constexpr double G = 1.0;
  */
 constexpr bool use_gravity = true;
 
+enum class BoundaryCondition {
+    PERIODIC,
+    OUTFLOW
+    // Add more boundary conditions if needed
+};
+
 } // namespace config
 } // namespace agoge
