@@ -41,30 +41,49 @@ The name “agoge” reflects the code’s purpose as a **training ground** for 
 agoge/
 ├── include/
 │   └── agoge/
+│       ├── BoundaryManager.hpp
 │       ├── Config.hpp
 │       ├── Domain.hpp
-│       ├── Field3d.hpp
 │       ├── EulerSolver.hpp
+│       ├── Field3d.hpp
 │       ├── GravitySolver.hpp
 │       ├── HDF5_IO.hpp
 │       ├── ParameterSystem.hpp
 │       ├── PerformanceMonitor.hpp
-│       ├── YamlParser.hpp
-│       └── ...
+│       └── YamlParser.hpp
+├── problems/
+│   ├── GravityCollapse.cpp
+│   ├── GravityCollapse.hpp
+│   ├── GaussianPulse.cpp
+│   ├── GaussianPulse.hpp
+│   ├── Problem.hpp
+│   ├── ProblemRegistry.cpp
+│   └── ProblemRegistry.hpp
 ├── src/
-│   ├── main.cpp
-│   ├── Field3D.cpp
+│   ├── BoundaryManager.cpp
+│   ├── Config.cpp
 │   ├── EulerSolver.cpp
+│   ├── Field3d.cpp
 │   ├── GravitySolver.cpp
 │   ├── HDF5_IO.cpp
-│   ├── HDF5_IO.cpp
-│   └── ...
+│   ├── main.cpp
+│   └── YamlParser.cpp
 ├── tests/
 │   ├── CMakeLists.txt
-│   ├── test_Field3D.cpp
 │   ├── test_EulerSolver.cpp
-│   └── ...
-└── README.md              # This file
+│   └── test_Field3D.cpp
+├── viz/
+│   ├── agoge_yt.py
+│   ├── agoge_viz.py
+│   └── example.ipynb
+├── projects/
+│   └── project1/
+│       └── README.md
+├── CMakeLists.txt
+├── Makefile
+├── README.md
+├── design.md
+└── instructions.md
 ```
 
 - **`include/`**: Public headers declaring data structures and solver interfaces.  

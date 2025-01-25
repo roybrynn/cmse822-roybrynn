@@ -84,7 +84,7 @@ def read_agoge_hdf5(filename):
 
 
 
-def plot_line(data, field="rho", axis="x", index_j=0, index_k=0, figsize=(6,4)):
+def plot_line(data, field="rho", axis="x", index_j=0, index_k=0, figsize=(6,4), ax=None):
     """
     Plot a 1D line of 'field' data along a given axis ('x','y','z'),
     holding the other two indices fixed.
@@ -102,6 +102,10 @@ def plot_line(data, field="rho", axis="x", index_j=0, index_k=0, figsize=(6,4)):
     Nx, Ny, Nz = data["domain_dimensions"]
     dx, dy, dz = data["cell_size"]
     bbox = data["bounding_box"]
+
+    if ax is None:
+        plt.figure(figsize=figsize)
+        ax = plt.gca()
 
     # xarr -> coordinates for plot
     if axis == "x":
@@ -125,14 +129,13 @@ def plot_line(data, field="rho", axis="x", index_j=0, index_k=0, figsize=(6,4)):
     else:
         raise ValueError(f"Unknown axis '{axis}'")
 
-    plt.figure(figsize=figsize)
-    plt.plot(xvals, line, '-x', label=field)
-    plt.xlabel(f"{label_axis}-coordinate")
-    plt.ylabel(field)
-    plt.title(f"Line plot of {field} along axis={axis}")
+    ax.plot(xvals, line, '-x', label=field)
+    ax.set_xlabel(f"{label_axis}-coordinate")
+    ax.set_ylabel(field)
+    ax.set_title(f"Line plot of {field} along axis={axis}")
     plt.legend()
     plt.grid(True)
-    plt.show()
+    
 
 
 def plot_slice(data, field="rho", plane="z", plane_index=0, figsize=(6,5),

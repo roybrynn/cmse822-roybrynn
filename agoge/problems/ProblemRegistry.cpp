@@ -3,6 +3,7 @@
 #include "Problem.hpp" // Include definitions of Problem and its derivatives
 #include "SodShockTube.hpp"
 #include "GravityCollapse.hpp"
+#include "GaussianPulse.hpp"
 
 namespace agoge
 {
@@ -18,6 +19,9 @@ namespace agoge
             else if (name == "collapse")
             {
                 return std::make_unique<GravityCollapse>();
+            }
+            else if (name == "gaussian") {
+                return std::make_unique<GaussianPulse>();
             }
             // Add more problem types as needed
 

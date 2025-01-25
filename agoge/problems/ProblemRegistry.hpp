@@ -12,6 +12,7 @@ namespace agoge
         class Problem;
         class SodShockTube;
         class GravityCollapse;
+        class GaussianPulse; 
 
         // Declaration of the createProblem function
         std::unique_ptr<Problem> createProblem(const std::string &name);
