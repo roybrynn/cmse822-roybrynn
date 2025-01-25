@@ -39,20 +39,24 @@ The name “agoge” reflects the code’s purpose as a **training ground** for 
 
 ```
 agoge/
-├── CMakeLists.txt         # Top-level CMake file
 ├── include/
 │   └── agoge/
 │       ├── Config.hpp
-│       ├── Field3D.hpp
+│       ├── Domain.hpp
+│       ├── Field3d.hpp
 │       ├── EulerSolver.hpp
 │       ├── GravitySolver.hpp
 │       ├── HDF5_IO.hpp
+│       ├── ParameterSystem.hpp
+│       ├── PerformanceMonitor.hpp
+│       ├── YamlParser.hpp
 │       └── ...
 ├── src/
 │   ├── main.cpp
 │   ├── Field3D.cpp
 │   ├── EulerSolver.cpp
 │   ├── GravitySolver.cpp
+│   ├── HDF5_IO.cpp
 │   ├── HDF5_IO.cpp
 │   └── ...
 ├── tests/

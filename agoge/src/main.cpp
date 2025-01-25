@@ -1,14 +1,14 @@
+#include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <string>
-#include <cstdlib>
-#include <cmath>
 
 // Agoge core headers
-#include "Field3d.hpp"
+#include "Config.hpp"
 #include "EulerSolver.hpp"
+#include "Field3d.hpp"
 #include "GravitySolver.hpp"
 #include "HDF5_IO.hpp"
-#include "Config.hpp"
 
 // Problem-based approach: interface & registry
 #include "../problems/Problem.hpp"
@@ -18,17 +18,18 @@
 #include "PerformanceMonitor.hpp"
 
 // Our parameter system
+#include "BoundaryManager.hpp"
 #include "ParameterSystem.hpp"
 
 // Choose the gravity solver method globally or pass it in:
-agoge::gravity::GravityMethod method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
+agoge::gravity::GravityMethod method =
+    agoge::gravity::GravityMethod::COOLEY_TUKEY;
 
-/** 
- * @brief Helper to compute just the maximum wave speed (|u|+a) in Q 
+/**
+ * @brief Helper to compute just the maximum wave speed (|u|+a) in Q
  *        (similar to computeTimeStep, but ignoring cfl).
  */
-static double findMaxWaveSpeed(const agoge::Field3D &Q)
-{
+static double findMaxWaveSpeed(const agoge::Field3D& Q) {
     double maxSpeed = 0.0;
     double gamma_gas = agoge::config::gamma_gas;
     int Nx = Q.Nx;
@@ -44,19 +45,20 @@ static double findMaxWaveSpeed(const agoge::Field3D &Q)
                 double ru = Q.rhou[idx];
                 double rv = Q.rhov[idx];
                 double rw = Q.rhow[idx];
-                double e  = Q.E[idx];
+                double e = Q.E[idx];
 
                 double u = ru / r;
                 double v = rv / r;
                 double w = rw / r;
-                double speed = std::sqrt(u*u + v*v + w*w);
+                double speed = std::sqrt(u * u + v * v + w * w);
 
                 // pressure
-                double p = (gamma_gas - 1.0)*( e - 0.5*r*(u*u + v*v + w*w) );
-                if(p < 0.0) continue;
+                double p =
+                    (gamma_gas - 1.0) * (e - 0.5 * r * (u * u + v * v + w * w));
+                if (p < 0.0) continue;
                 double a = std::sqrt(gamma_gas * p / r);
                 double localWave = speed + a;
-                if(localWave > maxSpeed) {
+                if (localWave > maxSpeed) {
                     maxSpeed = localWave;
                 }
             }
@@ -65,8 +67,7 @@ static double findMaxWaveSpeed(const agoge::Field3D &Q)
     return maxSpeed;
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     // Start timing the entire main program
     agoge::PerformanceMonitor::instance().startTimer("main");
 
@@ -77,8 +78,7 @@ int main(int argc, char** argv)
     // 1) Problem name
     // 2) Optional YAML file for overrides
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0]
-                  << " <problemName> [yaml_file]\n"
+        std::cerr << "Usage: " << argv[0] << " <problemName> [yaml_file]\n"
                   << "Example: ./agoge_run sod input.yaml\n"
                   << "Or if no YAML file, just do: ./agoge_run sod\n";
         return 1;
@@ -88,18 +88,22 @@ int main(int argc, char** argv)
     std::string problemName = argv[1];
 
     // Arg2 => optional YAML
-    if(argc >= 3) {
+    if (argc >= 3) {
         std::string yamlFile = argv[2];
         bool ok = params.readYAML(yamlFile);
-        if(!ok) {
+        if (!ok) {
             std::cerr << "[main] WARNING: Could not parse " << yamlFile << "\n";
         }
     }
 
+    // Initialize boundary conditions from parameters
+    agoge::BoundaryManager::initBCsFromParameters(params);
+
     // 1) Create the problem
     auto problem = agoge::problems::createProblem(problemName);
-    if(!problem) {
-        std::cerr << "Error: Unrecognized problem name '" << problemName << "'\n";
+    if (!problem) {
+        std::cerr << "Error: Unrecognized problem name '" << problemName
+                  << "'\n";
         return 1;
     }
     std::cout << "Selected problem: " << problem->name() << "\n";
@@ -110,8 +114,9 @@ int main(int argc, char** argv)
     int Nz = params.getInt("nz");
 
     auto domainVec = params.getDoubleList("domain");
-    if(domainVec.size() < 3) {
-        std::cerr << "[main] WARNING: domain list < 3 elements, fallback [1,1,1].\n";
+    if (domainVec.size() < 3) {
+        std::cerr
+            << "[main] WARNING: domain list < 3 elements, fallback [1,1,1].\n";
         domainVec = {1.0, 1.0, 1.0};
     }
     double Lx = domainVec[0];
@@ -127,18 +132,27 @@ int main(int argc, char** argv)
     problem->initialize(Q);
 
     bool gravityEnabled = params.getBool("use_gravity");
-    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED")
+              << "\n";
 
-    // 4) time stepping with "sound_crossings"
+    // 4) Set up boundary conditions (once), reading from param
+    auto bcxmin = params.getBoundaryCondition("bc_xmin");
+    auto bcxmax = params.getBoundaryCondition("bc_xmax");
+    auto bcymin = params.getBoundaryCondition("bc_ymin");
+    auto bcymax = params.getBoundaryCondition("bc_ymax");
+    auto bczmin = params.getBoundaryCondition("bc_zmin");
+    auto bczmax = params.getBoundaryCondition("bc_zmax");
+
+    // 5) time stepping with "sound_crossings"
     double cflVal = params.getDouble("cfl");
     double crossingCount = params.getDouble("sound_crossings");
-    std::cout << "CFL=" << cflVal 
-              << ", sound_crossings=" << crossingCount << "\n";
+    std::cout << "CFL=" << cflVal << ", sound_crossings=" << crossingCount
+              << "\n";
 
     // Compute initial max wave speed
     double initMaxSpeed = findMaxWaveSpeed(Q);
-    if(initMaxSpeed < 1e-14) {
-        initMaxSpeed = 1e-14; // avoid divide by zero
+    if (initMaxSpeed < 1e-14) {
+        initMaxSpeed = 1e-14;  // avoid divide by zero
     }
     double Lmax = std::max({Lx, Ly, Lz});
     double crossingTime = Lmax / initMaxSpeed;
@@ -148,14 +162,16 @@ int main(int argc, char** argv)
               << ", crossingTime= " << crossingTime
               << ", totalTime= " << totalTime << "\n";
 
+    agoge::io::writeFieldHDF5(Q, "agoge_init.h5");
+
     // Start main time loop, but in terms of totalTime
     agoge::PerformanceMonitor::instance().startTimer("timeLoop");
 
     double currentTime = 0.0;
     int step = 0;
-    while(currentTime < totalTime) {
+    while (currentTime < totalTime) {
         // If gravity is on, solve Poisson
-        if(gravityEnabled) {
+        if (gravityEnabled) {
             agoge::PerformanceMonitor::instance().startTimer("solvePoisson");
             agoge::gravity::solvePoisson(Q, method);
             agoge::PerformanceMonitor::instance().stopTimer("solvePoisson");
@@ -165,13 +181,13 @@ int main(int argc, char** argv)
         double dt = agoge::euler::computeTimeStep(Q, cflVal);
 
         // If dt is so tiny or zero => break
-        if(dt < 1e-15) {
+        if (dt < 1e-15) {
             std::cerr << "[main] dt is extremely small, stopping.\n";
             break;
         }
 
         // If next step would exceed totalTime, clamp dt
-        if( (currentTime + dt) > totalTime ) {
+        if ((currentTime + dt) > totalTime) {
             dt = totalTime - currentTime;
         }
 
@@ -180,11 +196,9 @@ int main(int argc, char** argv)
         currentTime += dt;
         step++;
 
-        if(step % 2 == 0) {
-            std::cout << "Step=" << step 
-                      << ", time=" << currentTime 
-                      << "/" << totalTime 
-                      << ", dt=" << dt << "\n";
+        if (step % 2 == 0) {
+            std::cout << "Step=" << step << ", time=" << currentTime << "/"
+                      << totalTime << ", dt=" << dt << "\n";
         }
     }
 
