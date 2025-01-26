@@ -1,59 +1,77 @@
 // problems/GravityCollapse.cpp
 #include "GravityCollapse.hpp"
-#include "Config.hpp"
+
 #include <cmath>
+#include <iostream>
 
 namespace agoge {
 namespace problems {
 
-void GravityCollapse::initialize(Field3D &Q)
-{
-    // Example: uniform sphere with a slight overdensity in center
-    int Nx = Q.Nx;
-    int Ny = Q.Ny;
-    int Nz = Q.Nz;
-    double dx = Q.dx;
-    double dy = Q.dy;
-    double dz = Q.dz;
+/**
+ * @brief Initialize the Field3D with gravity-driven initial conditions.
+ *
+ * @param Q The field to initialize.
+ * @param params The ParameterSystem instance containing parameters.
+ */
+void GravityCollapse::initialize(Field3D &Q, const ParameterSystem &params) {
+    // Retrieve problem-specific parameters using prefix
+    std::string prefix = name() + ".";
 
-    double rho0 = 1.0;
-    double p0   = 1.0;
-    double E0   = p0 / (config::gamma_gas - 1.0);
+    double initialDensity = params.getDouble(prefix + "initial_density");
+    double collapseStrength = params.getDouble(prefix + "collapse_strength");
+    double gravity =
+        params.getDouble(prefix + "gravity");  // Example additional parameter
 
-    double Lx = Nx * dx;
-    double Ly = Ny * dy;
-    double Lz = Nz * dz;
+    // Example initialization logic
+    for (int k = 0; k < Q.Nz; ++k) {
+        for (int j = 0; j < Q.Ny; ++j) {
+            for (int i = 0; i < Q.Nx; ++i) {
+                int idx = Q.index(i, j, k);
 
-    for(int k=0; k<Nz; ++k) {
-        for(int j=0; j<Ny; ++j) {
-            for(int i=0; i<Nx; ++i) {
-                int idx = Q.index(i,j,k);
+                // Set density
+                Q.rho[idx] = initialDensity;
 
-                double x = (i+0.5)*dx;
-                double y = (j+0.5)*dy;
-                double z = (k+0.5)*dz;
-
-                double cx = 0.5 * Lx;
-                double cy = 0.5 * Ly;
-                double cz = 0.5 * Lz;
-
-                double r2 = (x - cx)*(x - cx)
-                          + (y - cy)*(y - cy)
-                          + (z - cz)*(z - cz);
-
-                double radius2 = 0.01 * Lx*Lx;  // e.g. 0.1 * domain radius
-                double local_rho = (r2 < radius2) ? (rho0 * 2.0) : rho0;
-
-                Q.rho [idx] = local_rho;
+                // Set velocity (e.g., zero or based on collapse strength)
                 Q.rhou[idx] = 0.0;
                 Q.rhov[idx] = 0.0;
                 Q.rhow[idx] = 0.0;
-                Q.E   [idx] = E0 * (local_rho / rho0);
-                Q.phi [idx] = 0.0;  // solved via Poisson
+
+                // Set energy based on pressure (example)
+                double pressure = 1.0;  // Could be parameterized
+                double gamma = params.getDouble(
+                    prefix + "gamma");  // Assuming gamma is a parameter
+                Q.E[idx] = pressure / (gamma - 1.0);
+
+                // Set gravitational potential if applicable
+                Q.phi[idx] =
+                    gravity * k * Q.dz;  // Simple gravity in z-direction
             }
         }
     }
+
+    std::cout << "[GravityCollapse] Initialized gravity-driven collapse with "
+              << "initial_density=" << initialDensity
+              << ", collapse_strength=" << collapseStrength
+              << ", gravity=" << gravity << "\n";
 }
 
-} // namespace problems
-} // namespace agoge
+/**
+ * @brief Register problem-specific default parameters with the ParameterSystem.
+ *
+ * @param params The ParameterSystem instance.
+ */
+void GravityCollapse::registerParameters(ParameterSystem &params) const {
+    // Prefix parameters with the problem name to avoid key collisions
+    std::string prefix = name() + ".";
+
+    // Define default values for problem-specific parameters
+    params.addDefault(prefix + "initial_density", "1.0");
+    params.addDefault(prefix + "collapse_strength", "0.5");
+    params.addDefault(prefix + "gravity",
+                      "9.81");  // Example gravitational constant
+    params.addDefault(prefix + "gamma", "1.4");  // Assuming ideal gas
+    // Add more parameters as needed
+}
+
+}  // namespace problems
+}  // namespace agoge

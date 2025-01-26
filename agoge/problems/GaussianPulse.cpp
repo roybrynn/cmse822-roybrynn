@@ -4,8 +4,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "../include/agoge/Config.hpp"
-
 namespace agoge {
 namespace problems {
 
@@ -22,14 +20,8 @@ void GaussianPulse::registerParameters(ParameterSystem &params) const {
     params.addDefault(prefix + "gamma", "1.4");  // Assuming ideal gas
 }
 
-void GaussianPulse::initialize(Field3D &Q) {
-    // Retrieve problem-specific parameters
-    // Assuming ParameterSystem is accessible; adjust as needed based on
-    // main.cpp implementation
-    agoge::ParameterSystem &params =
-        Q.getParameterSystem();  // Modify Field3D to hold a reference if not
-                                 // already
-
+void GaussianPulse::initialize(Field3D &Q, const ParameterSystem &params) {
+    // Retrieve problem-specific parameters using prefix
     std::string prefix = name() + ".";
 
     double amp = params.getDouble(prefix + "amplitude");

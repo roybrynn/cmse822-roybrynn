@@ -74,44 +74,64 @@ int main(int argc, char** argv) {
     // Create a ParameterSystem with built-in defaults
     agoge::ParameterSystem params;
 
-    // We might expect 2 arguments:
-    // 1) Problem name
-    // 2) Optional YAML file for overrides
+    // We might expect 1 argument:
+    // 1) YAML file for parameters including problem name    
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <problemName> [yaml_file]\n"
-                  << "Example: ./agoge_run sod input.yaml\n"
-                  << "Or if no YAML file, just do: ./agoge_run sod\n";
+        std::cerr << "Usage: " << argv[0] << " [yaml_file]\n"
+                  << "Example: ./agoge_run Sod.yaml\n";
+        return 1;
+    }
+    params;
+    
+    // Register global parameters are already set in ParameterSystem's constructor
+    // Register problem-specific parameters will be handled after problem creation
+
+    // Read global parameters first
+    if (!params.readYAML(argv[1])) {
+        std::cerr << "Failed to read configuration file.\n";
         return 1;
     }
 
-    // Arg1 => problem name
-    std::string problemName = argv[1];
-
-    // Arg2 => optional YAML
-    if (argc >= 3) {
-        std::string yamlFile = argv[2];
-        bool ok = params.readYAML(yamlFile);
-        if (!ok) {
-            std::cerr << "[main] WARNING: Could not parse " << yamlFile << "\n";
-        }
+    // Get the problem name
+    std::string problem_name = params.getString("problem_name");
+    if (problem_name.empty()) {
+        std::cerr << "Problem name not specified in configuration.\n";
+        return 1;
     }
 
-    // Initialize boundary conditions from parameters
-    agoge::BoundaryManager::initBCsFromParameters(params);
-
-    // 1) Create the problem
-    auto problem = agoge::problems::createProblem(problemName);
+    // Create the Problem instance
+    std::unique_ptr<agoge::problems::Problem> problem = agoge::problems::createProblem(problem_name);
     if (!problem) {
-        std::cerr << "Error: Unrecognized problem name '" << problemName
-                  << "'\n";
+        std::cerr << "Unknown problem name: " << problem_name << "\n";
         return 1;
     }
-    std::cout << "Selected problem: " << problem->name() << "\n";
 
+    // Register problem-specific parameters
     problem->registerParameters(params);
 
     // Re-read YAML to allow overriding problem-specific defaults
-    params.readYAML(argv[1]);
+    if (!params.readYAML(argv[1])) {
+        std::cerr << "Failed to re-read configuration file.\n";
+        return 1;
+    }
+    
+    // Register global parameters are already set in ParameterSystem's constructor
+    // Register problem-specific parameters will be handled after problem creation
+
+    // Read global parameters first
+    if (!params.readYAML(argv[1])) {
+        std::cerr << "Failed to read configuration file.\n";
+        return 1;
+    }
+
+    // Register problem-specific parameters
+    problem->registerParameters(params);
+
+    // Re-read YAML to allow overriding problem-specific defaults
+    if (!params.readYAML(argv[1])) {
+        std::cerr << "Failed to re-read configuration file.\n";
+        return 1;
+    }
     
     // 2) Get Nx, Ny, Nz, domain, etc.
     int Nx = params.getInt("nx");
@@ -131,10 +151,11 @@ int main(int argc, char** argv) {
     double dx = Lx / Nx;
     double dy = Ly / Ny;
     double dz = Lz / Nz;
+
     agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz);
 
     // 3) Initialize with the chosen problem
-    problem->initialize(Q);
+    problem->initialize(Q, params);
 
     bool gravityEnabled = params.getBool("use_gravity");
     std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED")

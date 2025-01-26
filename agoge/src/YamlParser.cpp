@@ -12,10 +12,8 @@ bool YamlParser::parseFile(const std::string &filename)
         return false; // file not found or unable to open
     }
 
-    int lineNum = 0;
     std::string line;
     while(std::getline(fin, line)) {
-        lineNum++;
         // Trim whitespace
         line = trim(line);
         // Skip empty or comment lines

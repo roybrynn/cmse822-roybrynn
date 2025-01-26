@@ -3,7 +3,6 @@
 
 #include <vector>
 
-#include "ParameterSystem.hpp"
 /**
  * @file Field3d.hpp
  * @brief Declaration of the Field3D structure for the Agoge solver.
@@ -21,11 +20,7 @@ namespace agoge {
  */
 class Field3D {
    public:
-    Field3D(int nx, int ny, int nz, double dx, double dy, double dz,
-            agoge::ParameterSystem &params);
-    // Existing members...
-
-    agoge::ParameterSystem &getParameterSystem() const { return params_; }
+    Field3D(int nx, int ny, int nz, double dx, double dy, double dz);
 
     // Indexing method
     int index(int i, int j, int k) const { return i + Nx * (j + Ny * k); }
@@ -49,8 +44,6 @@ class Field3D {
     std::vector<double> E;
     std::vector<double> phi;
 
-   private:
-    agoge::ParameterSystem &params_;
 };
 
 }  // namespace agoge

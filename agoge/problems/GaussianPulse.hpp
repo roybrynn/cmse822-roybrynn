@@ -1,8 +1,6 @@
 // problems/GaussianPulse.hpp
 #pragma once
 
-#include <unordered_map>
-
 #include "../include/agoge/Field3d.hpp"
 #include "Problem.hpp"
 
@@ -30,7 +28,7 @@ class GaussianPulse : public Problem {
     virtual ~GaussianPulse() = default;
 
     /// Initialize the field with a Gaussian pulse in density
-    void initialize(Field3D &Q) override;
+    void initialize(Field3D &Q, const ParameterSystem &params) override;
 
     /// Register problem-specific parameters
     void registerParameters(ParameterSystem &params) const override;

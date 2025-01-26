@@ -2,7 +2,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 
 #include "Field3d.hpp"
 #include "ParameterSystem.hpp"
@@ -21,8 +20,9 @@ class Problem {
      * @brief Initialize the Field3D with problem-specific initial conditions.
      *
      * @param Q The field to initialize.
+     * @param params The ParameterSystem instance containing parameters.
      */
-    virtual void initialize(Field3D &Q) = 0;
+    virtual void initialize(Field3D &Q, const ParameterSystem &params) = 0;
 
     /**
      * @brief Register problem-specific default parameters with the
@@ -39,7 +39,11 @@ class Problem {
      */
     virtual bool useGravity() const { return false; }
 
-    // Optionally: a name identifier or other problem-specific parameters
+    /**
+     * @brief Get the name identifier of the problem.
+     *
+     * @return Problem name as a string.
+     */
     virtual std::string name() const = 0;
 };
 
