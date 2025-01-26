@@ -108,6 +108,11 @@ int main(int argc, char** argv) {
     }
     std::cout << "Selected problem: " << problem->name() << "\n";
 
+    problem->registerParameters(params);
+
+    // Re-read YAML to allow overriding problem-specific defaults
+    params.readYAML(argv[1]);
+    
     // 2) Get Nx, Ny, Nz, domain, etc.
     int Nx = params.getInt("nx");
     int Ny = params.getInt("ny");

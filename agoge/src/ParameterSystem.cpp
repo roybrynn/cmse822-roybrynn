@@ -1,3 +1,4 @@
+// ParameterSystem.cpp
 #include "ParameterSystem.hpp"
 
 #include <cctype>
@@ -28,6 +29,11 @@ void ParameterSystem::setDefaults() {
     defaults_["bc_ymax"] = "periodic";
     defaults_["bc_zmin"] = "periodic";
     defaults_["bc_zmax"] = "periodic";
+}
+
+void ParameterSystem::addDefault(const std::string &key,
+                                 const std::string &value) {
+    defaults_[key] = value;
 }
 
 bool ParameterSystem::readYAML(const std::string &filename) {

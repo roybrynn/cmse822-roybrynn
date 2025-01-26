@@ -1,3 +1,4 @@
+// problems/GaussianPulse.cpp
 #include "GaussianPulse.hpp"
 
 #include <cmath>
@@ -8,23 +9,35 @@
 namespace agoge {
 namespace problems {
 
+void GaussianPulse::registerParameters(ParameterSystem &params) const {
+    // Prefix parameters with the problem name to avoid key collisions
+    std::string prefix = name() + ".";
+
+    // Define default values for problem-specific parameters
+    params.addDefault(prefix + "amplitude", "0.1");
+    params.addDefault(prefix + "sigma", "0.05");
+    params.addDefault(prefix + "u0", "1.0");  // Advection velocity
+    params.addDefault(prefix + "base_rho", "1.0");
+    params.addDefault(prefix + "base_p", "1.0");
+    params.addDefault(prefix + "gamma", "1.4");  // Assuming ideal gas
+}
+
 void GaussianPulse::initialize(Field3D &Q) {
-    // We'll set:
-    //   - uniform velocity in x-direction (u0 = 1, for example)
-    //   - uniform pressure = 1
-    //   - base density = 1
-    //   - an added Gaussian "bump" in density, e.g. amplitude=0.1, sigma=0.05
-    //
-    // The domain is [0..(Nx*dx)] x [0..(Ny*dy)] x [0..(Nz*dz)] with periodic
-    // BC. If user sets Nx>1, or Ny=1 => 1D, etc. It's all consistent.
+    // Retrieve problem-specific parameters
+    // Assuming ParameterSystem is accessible; adjust as needed based on
+    // main.cpp implementation
+    agoge::ParameterSystem &params =
+        Q.getParameterSystem();  // Modify Field3D to hold a reference if not
+                                 // already
 
-    double u0 = 1.0;  // advection velocity in x
-    double baseRho = 1.0;
-    double baseP = 1.0;
-    double gamma = agoge::config::gamma_gas;
+    std::string prefix = name() + ".";
 
-    double amp = 0.1;     // amplitude of the Gaussian
-    double sigma = 0.05;  // width
+    double amp = params.getDouble(prefix + "amplitude");
+    double sigma = params.getDouble(prefix + "sigma");
+    double u0 = params.getDouble(prefix + "u0");
+    double baseRho = params.getDouble(prefix + "base_rho");
+    double baseP = params.getDouble(prefix + "base_p");
+    double gamma = params.getDouble(prefix + "gamma");
 
     // center
     double cx = 0.5 * Q.Nx * Q.dx;

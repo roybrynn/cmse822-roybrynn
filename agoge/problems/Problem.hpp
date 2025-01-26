@@ -2,7 +2,10 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
+
 #include "Field3d.hpp"
+#include "ParameterSystem.hpp"
 
 namespace agoge {
 namespace problems {
@@ -11,7 +14,7 @@ namespace problems {
  * @brief Base class for specifying problem-specific setup and physics choices.
  */
 class Problem {
-public:
+   public:
     virtual ~Problem() = default;
 
     /**
@@ -20,6 +23,14 @@ public:
      * @param Q The field to initialize.
      */
     virtual void initialize(Field3D &Q) = 0;
+
+    /**
+     * @brief Register problem-specific default parameters with the
+     * ParameterSystem.
+     *
+     * @param params The ParameterSystem instance.
+     */
+    virtual void registerParameters(ParameterSystem &params) const = 0;
 
     /**
      * @brief Whether or not gravity should be enabled for this problem.
@@ -32,5 +43,5 @@ public:
     virtual std::string name() const = 0;
 };
 
-} // namespace problems
-} // namespace agoge
+}  // namespace problems
+}  // namespace agoge

@@ -1,3 +1,4 @@
+// ParameterSystem.hpp
 #pragma once
 
 #include <string>
@@ -30,6 +31,14 @@ class ParameterSystem {
      */
     config::BoundaryCondition getBoundaryCondition(
         const std::string &key) const;
+
+    /**
+     * @brief Add a default parameter key-value pair.
+     *
+     * @param key The parameter key.
+     * @param value The default value as a string.
+     */
+    void addDefault(const std::string &key, const std::string &value);
 
    private:
     YamlParser parser_;

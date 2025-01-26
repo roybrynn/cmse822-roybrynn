@@ -1,21 +1,22 @@
+// src/Field3d.cpp
 #include "Field3d.hpp"
 
 namespace agoge {
 
-Field3D::Field3D(int nx, int ny, int nz, double dx_, double dy_, double dz_)
-    : Nx(nx), Ny(ny), Nz(nz),
-      dx(dx_), dy(dy_), dz(dz_)
-{
-    // Compute total number of cells
-    const size_t N = static_cast<size_t>(Nx) * Ny * Nz;
+Field3D::Field3D(int nx, int ny, int nz, double dx, double dy, double dz,
+                 agoge::ParameterSystem &params)
+    : Nx(nx),
+      Ny(ny),
+      Nz(nz),
+      dx(dx),
+      dy(dy),
+      dz(dz),
+      rho(nx * ny * nz, 0.0),
+      rhou(nx * ny * nz, 0.0),
+      rhov(nx * ny * nz, 0.0),
+      rhow(nx * ny * nz, 0.0),
+      E(nx * ny * nz, 0.0),
+      phi(nx * ny * nz, 0.0),
+      params_(params) {}
 
-    // Allocate each field
-    rho .resize(N);
-    rhou.resize(N);
-    rhov.resize(N);
-    rhow.resize(N);
-    E   .resize(N);
-    phi .resize(N);
-}
-
-} // namespace agoge
+}  // namespace agoge

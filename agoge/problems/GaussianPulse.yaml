@@ -1,26 +1,14 @@
-# gaussian_test.yaml
-# Example parameter file for a GaussianPulse problem in 2D (Nx=64, Ny=64, Nz=1).
-# Domain size is 1 x 1 x 1, and boundary conditions are all periodic.
-# The simulation uses a CFL of 0.5 and runs for 1 "sound crossing."
+# config.yaml
 
-problem_name: "gaussian"
-
-# Grid dimensions
 nx: 128
 ny: 128
-nz: 1
-
-# Physical domain extent in each dimension
-domain: [1.0, 1.0, 1.0]
-
-# CFL number
+nz: 128
 cfl: 0.5
-
-# Number of "sound crossing" times to simulate.
-# The code will compute an initial max wave speed, find Lmax, etc.
+use_gravity: false
+domain: [1.0, 1.0, 1.0]
 sound_crossings: 2.183
+problem_name: "GaussianPulse"
 
-# Boundary conditions for all faces: periodic
 bc_xmin: "periodic"
 bc_xmax: "periodic"
 bc_ymin: "periodic"
@@ -28,5 +16,10 @@ bc_ymax: "periodic"
 bc_zmin: "periodic"
 bc_zmax: "periodic"
 
-# If you do not want gravity, ensure use_gravity is false.
-use_gravity: false
+# GaussianPulse specific parameters
+GaussianPulse.amplitude: 0.2
+GaussianPulse.sigma: 0.1
+GaussianPulse.u0: 1.5
+GaussianPulse.base_rho: 1.0
+GaussianPulse.base_p: 1.0
+GaussianPulse.gamma: 1.4
