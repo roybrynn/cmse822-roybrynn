@@ -22,8 +22,8 @@
 #include "ParameterSystem.hpp"
 
 // Choose the gravity solver method globally or pass it in:
-agoge::gravity::GravityMethod method =
-    agoge::gravity::GravityMethod::COOLEY_TUKEY;
+// agoge::gravity::GravityMethod method =
+//     agoge::gravity::GravityMethod::COOLEY_TUKEY;
 
 /**
  * @brief Helper to compute just the maximum wave speed (|u|+a) in Q
@@ -105,15 +105,6 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown problem name: " << problem_name << "\n";
         return 1;
     }
-
-    // Register problem-specific parameters
-    problem->registerParameters(params);
-
-    // Re-read YAML to allow overriding problem-specific defaults
-    if (!params.readYAML(argv[1])) {
-        std::cerr << "Failed to re-read configuration file.\n";
-        return 1;
-    }
     
     // Register global parameters are already set in ParameterSystem's constructor
     // Register problem-specific parameters will be handled after problem creation
@@ -132,7 +123,14 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to re-read configuration file.\n";
         return 1;
     }
-    
+
+    std::string gravMethod = params.getString("GravityCollapse.grav_method");
+    agoge::gravity::GravityMethod method =
+        agoge::gravity::GravityMethod::NAIVE_DFT;
+    if (gravMethod == "cooley_tukey") {
+        method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
+    }
+
     // 2) Get Nx, Ny, Nz, domain, etc.
     int Nx = params.getInt("nx");
     int Ny = params.getInt("ny");
@@ -229,6 +227,13 @@ int main(int argc, char** argv) {
     }
 
     agoge::PerformanceMonitor::instance().stopTimer("timeLoop");
+
+    // Example values; replace with actual simulation data
+    long totalZones = Nx * Ny * Nz;  // Total number of zones in the domain
+
+    // Set the steps and zones in the PerformanceMonitor
+    agoge::PerformanceMonitor::instance().setSteps(step);
+    agoge::PerformanceMonitor::instance().setZones(totalZones);
 
     // Output
     agoge::io::writeFieldHDF5(Q, "agoge_final.h5");
