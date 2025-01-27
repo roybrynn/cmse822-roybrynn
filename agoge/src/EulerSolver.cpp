@@ -28,20 +28,54 @@ static inline double pressure(double rho, double rhou, double rv, double rw,
 }
 
 //----------------------------------------
-// Gravity (unchanged or simplified)
+// Gravity Acceleration Calculation
 static inline void computeGravityAccel(const Field3D &gravField, int i, int j,
                                        int k, double &gx, double &gy,
                                        double &gz) {
-    // For brevity, not repeated. Or keep your existing approach
-    gx = 0;
-    gy = 0;
-    gz = 0;
+    // Compute gravitational acceleration as the negative gradient of phi
+    // g = -∇phi
+    // Using central differences
+
+    // Handle boundary conditions using BoundaryManager
+    int iL = BoundaryManager::getNeighborIndexX(i, gravField.Nx, true);   // i-1
+    int iR = BoundaryManager::getNeighborIndexX(i, gravField.Nx, false);  // i+1
+    int jD = BoundaryManager::getNeighborIndexY(j, gravField.Ny, true);   // j-1
+    int jU = BoundaryManager::getNeighborIndexY(j, gravField.Ny, false);  // j+1
+    int kB = BoundaryManager::getNeighborIndexZ(k, gravField.Nz, true);   // k-1
+    int kF = BoundaryManager::getNeighborIndexZ(k, gravField.Nz, false);  // k+1
+
+    // Central differences
+    double phiL = gravField.phi[gravField.index(iL, j, k)];
+    double phiR = gravField.phi[gravField.index(iR, j, k)];
+    double phiD = gravField.phi[gravField.index(i, jD, k)];
+    double phiU = gravField.phi[gravField.index(i, jU, k)];
+    double phiB = gravField.phi[gravField.index(i, j, kB)];
+    double phiF = gravField.phi[gravField.index(i, j, kF)];
+
+    // Avoid division by zero by ensuring grid spacing is positive
+    double dx = gravField.dx;
+    double dy = gravField.dy;
+    double dz = gravField.dz;
+
+    if (dx <= 0.0 || dy <= 0.0 || dz <= 0.0) {
+        std::cerr
+            << "[computeGravityAccel] Error: Non-positive grid spacing.\n";
+        gx = gy = gz = 0.0;
+        return;
+    }
+
+    gx = -(phiR - phiL) / (2.0 * dx);
+    gy = -(phiU - phiD) / (2.0 * dy);
+    gz = -(phiF - phiB) / (2.0 * dz);
 }
 
 //----------------------------------------
-// minimal artificial viscosity
+// Minimal artificial viscosity (unchanged)
 static void applyArtificialViscosity(const Field3D &Q, Field3D &LQ,
                                      double alpha /* = 0.1 */) {
+
+    agoge::PerformanceMonitor::instance().startTimer("applyArtificialViscosity");
+
     int Nx = Q.Nx;
     int Ny = Q.Ny;
     int Nz = Q.Nz;
@@ -105,9 +139,7 @@ static void applyArtificialViscosity(const Field3D &Q, Field3D &LQ,
         }
     }
 
-    // 2) We'll compute the Laplacian of each field (rho, rhou, rhov, rhow, E)
-    //    using naive second differences, referencing BoundaryManager for
-    //    neighbors.
+    // 2) Compute the Laplacian of each field (rho, rhou, rhov, rhow, E)
     std::vector<double> lapRho(Nx * Ny * Nz, 0.0);
     std::vector<double> lapRhou(Nx * Ny * Nz, 0.0);
     std::vector<double> lapRhov(Nx * Ny * Nz, 0.0);
@@ -155,9 +187,7 @@ static void applyArtificialViscosity(const Field3D &Q, Field3D &LQ,
     laplacian(Q.rhow, lapRhow);
     laplacian(Q.E, lapE);
 
-    // 3) For each cell, if divU < 0 => compression => apply artificial
-    // viscosity.
-    //    nu = alpha * h^2 * max(0, -divU)
+    // 3) Apply artificial viscosity where divergence is negative
     double h = std::min({dx, dy, dz});
 
     for (int c = 0; c < Nx * Ny * Nz; c++) {
@@ -171,12 +201,14 @@ static void applyArtificialViscosity(const Field3D &Q, Field3D &LQ,
         LQ.rhow[c] += nu * lapRhow[c];
         LQ.E[c] += nu * lapE[c];
     }
+    agoge::PerformanceMonitor::instance().stopTimer("applyArtificialViscosity");
 }
 
 //----------------------------------------
+// Modified computeL to include gravitational acceleration
+// Note: Removed 'static' keyword to match header declaration
 void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
-    PerformanceMonitor::instance().startTimer("computeL");
-
+    agoge::PerformanceMonitor::instance().startTimer("computeL");
     // Clear LQ
     std::fill(LQ.rho.begin(), LQ.rho.end(), 0.0);
     std::fill(LQ.rhou.begin(), LQ.rhou.end(), 0.0);
@@ -266,16 +298,36 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 double dFzdz_rhow = (FZp[3] - FZm[3]) * inv2dz;
                 double dFzdz_E = (FZp[4] - FZm[4]) * inv2dz;
 
+                // Compute RHS without gravity
                 double rhs_rho = -(dFxdx_rho + dFydy_rho + dFzdz_rho);
                 double rhs_rhou = -(dFxdx_rhou + dFydy_rhou + dFzdz_rhou);
                 double rhs_rhov = -(dFxdx_rhov + dFydy_rhov + dFzdz_rhov);
                 double rhs_rhow = -(dFxdx_rhow + dFydy_rhow + dFzdz_rhow);
                 double rhs_E = -(dFxdx_E + dFydy_E + dFzdz_E);
 
-                // Gravity?
-                // ...
+                // Gravity Acceleration
+                double gx = 0.0, gy = 0.0, gz = 0.0;
+                if (gravField != nullptr) {
+                    computeGravityAccel(*gravField, i, j, k, gx, gy, gz);
+                }
 
-                // Store
+                // Compute velocity components
+                double u = 0.0, v = 0.0, w = 0.0;
+                if (Q.rho[c] > 1.e-14) {  // Avoid division by zero
+                    u = Q.rhou[c] / Q.rho[c];
+                    v = Q.rhov[c] / Q.rho[c];
+                    w = Q.rhow[c] / Q.rho[c];
+                }
+
+                // Add gravitational body forces to momentum equations
+                rhs_rhou += Q.rho[c] * gx;
+                rhs_rhov += Q.rho[c] * gy;
+                rhs_rhow += Q.rho[c] * gz;
+
+                // Add gravitational work to energy equation
+                rhs_E += Q.rho[c] * (u * gx + v * gy + w * gz);
+
+                // Store in LQ
                 LQ.rho[c] = rhs_rho;
                 LQ.rhou[c] = rhs_rhou;
                 LQ.rhov[c] = rhs_rhov;
@@ -283,46 +335,47 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 LQ.E[c] = rhs_E;
             }
         }
+
     }
+    // Artificial viscosity
+    applyArtificialViscosity(Q, LQ, 1.0);
 
-    // artificial viscosity
-    applyArtificialViscosity(Q, LQ, 0.2);
-
-    PerformanceMonitor::instance().stopTimer("computeL");
+    agoge::PerformanceMonitor::instance().stopTimer("computeL");
 }
 
+//----------------------------------------
+// Modified runRK2 to pass the gravitational field
 void runRK2(Field3D &Q, double dt) {
-    PerformanceMonitor::instance().startTimer("runRK2");
 
     Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
     Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
     Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz);
 
     // Stage 1
-    computeL(Q, LQ, nullptr);
+    computeL(Q, LQ, &Q);  // Pass Q as gravField since phi is part of Q
     for (size_t n = 0; n < Q.rho.size(); n++) {
-        Qtemp.rho[n] = Q.rho[n] + dt * LQ.rho[n];
+        Qtemp.rho[n] = std::max(Q.rho[n] + dt * LQ.rho[n], 1.0e-10);
         Qtemp.rhou[n] = Q.rhou[n] + dt * LQ.rhou[n];
         Qtemp.rhov[n] = Q.rhov[n] + dt * LQ.rhov[n];
         Qtemp.rhow[n] = Q.rhow[n] + dt * LQ.rhow[n];
-        Qtemp.E[n] = Q.E[n] + dt * LQ.E[n];
+        Qtemp.E[n] = std::max(Q.E[n] + dt * LQ.E[n], 1.0e-10);
     }
 
     // Stage 2
-    computeL(Qtemp, LQtemp, nullptr);
+    computeL(Qtemp, LQtemp, &Qtemp);  // Pass Qtemp as gravField
     for (size_t n = 0; n < Q.rho.size(); n++) {
-        Q.rho[n] = 0.5 * (Q.rho[n] + Qtemp.rho[n] + dt * LQtemp.rho[n]);
+        Q.rho[n] = std::max(0.5 * (Q.rho[n] + Qtemp.rho[n] + dt * LQtemp.rho[n]), 1.0e-10);
         Q.rhou[n] = 0.5 * (Q.rhou[n] + Qtemp.rhou[n] + dt * LQtemp.rhou[n]);
         Q.rhov[n] = 0.5 * (Q.rhov[n] + Qtemp.rhov[n] + dt * LQtemp.rhov[n]);
         Q.rhow[n] = 0.5 * (Q.rhow[n] + Qtemp.rhow[n] + dt * LQtemp.rhow[n]);
-        Q.E[n] = 0.5 * (Q.E[n] + Qtemp.E[n] + dt * LQtemp.E[n]);
+        Q.E[n] = std::max(0.5 * (Q.E[n] + Qtemp.E[n] + dt * LQtemp.E[n]), 1.0e-10);
     }
 
-    PerformanceMonitor::instance().stopTimer("runRK2");
 }
 
+//----------------------------------------
+// Compute Time Step (unchanged)
 double computeTimeStep(const Field3D &Q, double cfl) {
-    PerformanceMonitor::instance().startTimer("computeTimeStep");
     double maxSpeed = 0.0;
     double gamma_gas = config::gamma_gas;
 
@@ -365,7 +418,6 @@ double computeTimeStep(const Field3D &Q, double cfl) {
         dt = cfl * (minDx / maxSpeed);
     }
 
-    PerformanceMonitor::instance().stopTimer("computeTimeStep");
     return dt;
 }
 

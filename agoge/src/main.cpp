@@ -216,7 +216,9 @@ int main(int argc, char** argv) {
         }
 
         // run one RK2 step
+        agoge::PerformanceMonitor::instance().startTimer("EulerSolve");
         agoge::euler::runRK2(Q, dt);
+        agoge::PerformanceMonitor::instance().stopTimer("EulerSolve");
         currentTime += dt;
         step++;
 
