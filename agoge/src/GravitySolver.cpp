@@ -279,13 +279,13 @@ void solvePoisson(Field3D &Q, GravityMethod method)
 
     if(method == GravityMethod::NAIVE_DFT)
     {
-        std::cout << "[GravitySolver] Using Naive DFT, O(N^6)\n";
+        // std::cout << "[GravitySolver] Using Naive DFT, O(N^6)\n";
         // 1) forward transform
         naiveForwardDFT3D(realBuf, cplxRho, Nx, Ny, Nz);
     }
     else // method == COOLEY_TUKEY
     {
-        std::cout << "[GravitySolver] Using Cooley-Tukey FFT, O(N^3 log N)\n";
+        // std::cout << "[GravitySolver] Using Cooley-Tukey FFT, O(N^3 log N)\n";
         // check if Nx,Ny,Nz are power-of-two
         if(!isPowerOfTwo(Nx) || !isPowerOfTwo(Ny) || !isPowerOfTwo(Nz)) {
             std::cerr << "[GravitySolver] WARNING: Nx,Ny,Nz are not all powers of two => Cooley-Tukey won't handle general sizes here.\n";
@@ -352,7 +352,7 @@ void solvePoisson(Field3D &Q, GravityMethod method)
             Q.phi[idx] = cplxRho[idx].real();
         }
     }
-    std::cout << "[GravitySolver] Poisson solve completed.\n";
+    // std::cout << "[GravitySolver] Poisson solve completed.\n";
 }
 
 } // namespace gravity

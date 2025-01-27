@@ -1,8 +1,14 @@
 # GravityCollapse.yaml
 # Configuration file for the GravityCollapse problem in the Agoge simulation framework.
+problem_name: "collapse"
+GravityCollapse.mass_solar: 1.0
+GravityCollapse.r_jeans: 1.0
+GravityCollapse.grav_method: "cooley_tukey"
+
 nx: 64
 ny: 64
 nz: 64
+# cfl, sound_crossings, etc. 
 cfl: 0.5
 use_gravity: true
 domain: [1.0, 1.0, 1.0]
@@ -15,18 +21,3 @@ bc_ymin: "periodic"
 bc_ymax: "periodic"
 bc_zmin: "periodic"
 bc_zmax: "periodic"
-
-GravityCollapse:
-  initial_density: 1.0        # Initial density of the collapsing region.
-  collapse_strength: 0.5      # Strength parameter controlling the intensity of the collapse.
-  gravity: 9.81               # Gravitational constant (e.g., in m/s² for SI units).
-  gamma: 1.4                  # Ratio of specific heats for an ideal gas (e.g., diatomic gas).
-
-# Example Usage:
-# To use this configuration, ensure that your main configuration file includes or references this YAML file.
-# For instance, you might include it as follows in your main config.yaml:
-#
-# include:
-#   - "GravityCollapse.yaml"
-#
-# This way, the Agoge ParameterSystem will recognize and apply the GravityCollapse-specific parameters.

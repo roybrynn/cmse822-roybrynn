@@ -92,3 +92,4 @@ agoge/build/*
 
 # binary
 agoge_run
+*.profraw
