@@ -31,7 +31,7 @@ void SodShockTube::initialize(Field3D &Q, const ParameterSystem &params) {
     for (int k = 0; k < Q.Nz; ++k) {
         for (int j = 0; j < Q.Ny; ++j) {
             for (int i = 0; i < Q.Nx; ++i) {
-                int idx = Q.index(i, j, k);
+                int idx = Q.interiorIndex(i, j, k);
 
                 // Determine left or right side based on position
                 double x = (i + 0.5) * Q.dx;

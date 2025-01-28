@@ -4,7 +4,7 @@
 
 namespace agoge {
 
-// static members
+// Static members
 config::BoundaryCondition BoundaryManager::bc_xmin =
     config::BoundaryCondition::PERIODIC;
 config::BoundaryCondition BoundaryManager::bc_xmax =
@@ -66,7 +66,7 @@ int BoundaryManager::getNeighborIndexY(int j, int Ny, bool lowerSide) {
             if (bc_ymin == config::BoundaryCondition::PERIODIC) {
                 return Ny - 1;
             } else if (bc_ymin == config::BoundaryCondition::OUTFLOW) {
-                return 0;
+                return 0;  // clamp
             }
         } else {
             return j - 1;
@@ -93,7 +93,7 @@ int BoundaryManager::getNeighborIndexZ(int k, int Nz, bool lowerSide) {
             if (bc_zmin == config::BoundaryCondition::PERIODIC) {
                 return Nz - 1;
             } else if (bc_zmin == config::BoundaryCondition::OUTFLOW) {
-                return 0;
+                return 0;  // clamp
             }
         } else {
             return k - 1;

@@ -38,7 +38,7 @@ static double findMaxWaveSpeed(const agoge::Field3D& Q) {
     for (int k = 0; k < Nz; ++k) {
         for (int j = 0; j < Ny; ++j) {
             for (int i = 0; i < Nx; ++i) {
-                int idx = Q.index(i, j, k);
+                int idx = Q.interiorIndex(i, j, k);
                 double r = Q.rho[idx];
                 if (r <= 0.0) continue;
 
@@ -71,9 +71,6 @@ int main(int argc, char** argv) {
     // Start timing the entire main program
     agoge::PerformanceMonitor::instance().startTimer("main");
 
-    // Create a ParameterSystem with built-in defaults
-    agoge::ParameterSystem params;
-
     // We might expect 1 argument:
     // 1) YAML file for parameters including problem name    
     if (argc < 2) {
@@ -81,8 +78,10 @@ int main(int argc, char** argv) {
                   << "Example: ./agoge_run Sod.yaml\n";
         return 1;
     }
-    params;
-    
+
+    // Create a ParameterSystem with built-in defaults
+    agoge::ParameterSystem params;
+
     // Register global parameters are already set in ParameterSystem's constructor
     // Register problem-specific parameters will be handled after problem creation
 
@@ -105,15 +104,6 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown problem name: " << problem_name << "\n";
         return 1;
     }
-    
-    // Register global parameters are already set in ParameterSystem's constructor
-    // Register problem-specific parameters will be handled after problem creation
-
-    // Read global parameters first
-    if (!params.readYAML(argv[1])) {
-        std::cerr << "Failed to read configuration file.\n";
-        return 1;
-    }
 
     // Register problem-specific parameters
     problem->registerParameters(params);
@@ -124,6 +114,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // set the boundary conditions
+    // agoge::BoundaryManager::initBCsFromParameters(params);
+    
     std::string gravMethod = params.getString("GravityCollapse.grav_method");
     agoge::gravity::GravityMethod method =
         agoge::gravity::GravityMethod::NAIVE_DFT;
@@ -150,9 +143,8 @@ int main(int argc, char** argv) {
     double dy = Ly / Ny;
     double dz = Lz / Nz;
 
-    agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz);
-
     // 3) Initialize with the chosen problem
+    agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz, 1);
     problem->initialize(Q, params);
 
     bool gravityEnabled = params.getBool("use_gravity");
@@ -160,12 +152,12 @@ int main(int argc, char** argv) {
               << "\n";
 
     // 4) Set up boundary conditions (once), reading from param
-    auto bcxmin = params.getBoundaryCondition("bc_xmin");
-    auto bcxmax = params.getBoundaryCondition("bc_xmax");
-    auto bcymin = params.getBoundaryCondition("bc_ymin");
-    auto bcymax = params.getBoundaryCondition("bc_ymax");
-    auto bczmin = params.getBoundaryCondition("bc_zmin");
-    auto bczmax = params.getBoundaryCondition("bc_zmax");
+    Q.bc_xmin = params.getBoundaryCondition("bc_xmin");
+    Q.bc_xmax = params.getBoundaryCondition("bc_xmax");
+    Q.bc_ymin = params.getBoundaryCondition("bc_ymin");
+    Q.bc_ymax = params.getBoundaryCondition("bc_ymax");
+    Q.bc_zmin = params.getBoundaryCondition("bc_zmin");
+    Q.bc_zmax = params.getBoundaryCondition("bc_zmax");
 
     // 5) time stepping with "sound_crossings"
     double cflVal = params.getDouble("cfl");
