@@ -1,0 +1,26 @@
+# GaussianPulse.yaml
+problem_name: "GaussianPulse"
+
+nx: 128
+ny: 1
+nz: 1
+cfl: 0.5
+use_gravity: false
+domain: [1.0, 1.0, 1.0]
+sound_crossings: 2.183
+# sound_crossings: 0.1
+
+bc_xmin: "periodic"
+bc_xmax: "periodic"
+bc_ymin: "periodic"
+bc_ymax: "periodic"
+bc_zmin: "periodic"
+bc_zmax: "periodic"
+
+# GaussianPulse specific parameters
+GaussianPulse.amplitude: 0.2
+GaussianPulse.sigma: 0.1
+GaussianPulse.u0: 1.5
+GaussianPulse.base_rho: 1.0
+GaussianPulse.base_p: 1.0
+GaussianPulse.gamma: 1.4
