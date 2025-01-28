@@ -34,7 +34,7 @@ endif
 CXX_STD ?= -std=c++2a
 
 # Compiler Flags
-CXXFLAGS := $(CXX_STD) -O3 -Wall -Wextra -MMD -MP -fprofile-instr-generate -fcoverage-mapping
+CXXFLAGS := $(CXX_STD) -O3 -Wall -Wextra -MMD -MP 
 
 # HDF5 Flags using pkg-config
 HDF5_CFLAGS := $(shell pkg-config --cflags hdf5_cpp 2>/dev/null)
@@ -52,7 +52,7 @@ endif
 INCLUDES := -Iinclude/agoge $(HDF5_CFLAGS)
 
 # Linker Flags
-LDFLAGS := $(HDF5_LIBS) -fprofile-instr-generate -fcoverage-mapping
+LDFLAGS := $(HDF5_LIBS) 
 
 # ========================
 # 2. Directories
