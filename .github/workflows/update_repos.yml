@@ -14,13 +14,13 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Install GitHub CLI
+    - name: Install GitHub CLI and Git
       run: |
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
         sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
         sudo apt update
-        sudo apt install gh -y
+        sudo apt install gh git -y
 
     - name: Authenticate GitHub CLI
       env:
@@ -38,7 +38,7 @@ jobs:
         echo "Student repositories found:"
         cat student_repos.txt
 
-    - name: Create Pull Requests in Student Repositories
+    - name: Update Student Repositories
       env:
         GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
       run: |
@@ -48,17 +48,44 @@ jobs:
         while read repo; do
           echo "Processing repository: $repo"
 
-          # Attempt to create a PR directly from template/main → student/main
+          # Clone the student's repository
+          git clone "https://github.com/cmse822/$repo.git"
+          cd "$repo"
+
+          # Set up git credentials
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
+          # Add the template repository as a remote
+          git remote add template "https://github.com/$TEMPLATE_REPO.git"
+          git fetch template
+
+          # Create a new update branch
+          NEW_BRANCH="update-from-template-$(date +%s)"
+          git checkout -b "$NEW_BRANCH"
+
+          # Merge changes from the template repo
+          git merge --allow-unrelated-histories template/$TEMPLATE_BRANCH -m "Merging latest updates from template"
+
+          # Push the new branch to the student repository
+          git push origin "$NEW_BRANCH"
+
+          # Create a pull request from the new branch to the student's main branch
           gh pr create --repo cmse822/$repo \
-            --head $TEMPLATE_REPO:$TEMPLATE_BRANCH \
+            --head "$NEW_BRANCH" \
             --base main \
             --title "Update from Template Repository" \
-            --body "This pull request includes updates from the template repository's main branch. Please review and merge to incorporate the latest changes." || {
+            --body "This pull request includes updates from the template repository's main branch. Please review and merge." || {
               echo "Error: Failed to create PR in $repo"
+              cd ..
+              rm -rf "$repo"
               continue
             }
 
           echo "Pull request created for repository: $repo"
+          cd ..
+          rm -rf "$repo"  # Clean up after processing
+
           sleep 2  # Prevent rate-limiting issues
 
         done < student_repos.txt
