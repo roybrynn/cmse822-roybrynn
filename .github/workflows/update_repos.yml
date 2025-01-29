@@ -33,7 +33,8 @@ jobs:
       run: |
         # Replace <your-org> with your GitHub organization name
         gh api orgs/cmse822/repos --paginate --jq '.[] | select(.name | startswith("cmse822-ss25-")) | .name' > student_repos.txt
-
+        cat student_repos.txt
+        
     - name: Create Pull Requests in Student Repositories
       run: |
         TEMPLATE_REPO="cmse822/cmse822-codex-ss25"
