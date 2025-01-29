@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Template Repository
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
     - name: Install GitHub CLI
@@ -48,39 +48,15 @@ jobs:
         while read repo; do
           echo "Processing repository: $repo"
 
-          # Get the SHA of the student's `main` branch (not the template repo's SHA)
-          STUDENT_MAIN_SHA=$(gh api repos/cmse822/$repo/git/refs/heads/main --jq .object.sha 2>/dev/null || echo "")
-
-          if [[ -z "$STUDENT_MAIN_SHA" ]]; then
-            echo "Error: Could not retrieve SHA for main branch in $repo. Skipping..."
-            continue
-          fi
-
-          # Define a unique branch name for the PR
-          NEW_BRANCH="update-from-template-$(date +%s)"
-          TARGET_BRANCH="main"
-
-          echo "Creating new branch $NEW_BRANCH in $repo from student repo's main branch ($STUDENT_MAIN_SHA)"
-
-          # Create a new branch in the student repo from its own main branch
-          gh api repos/cmse822/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha="$STUDENT_MAIN_SHA" || {
-            echo "Error: Failed to create branch in $repo"
-            continue
-          }
-
-          # Pull changes from the template repo
-          echo "Merging changes from template into $NEW_BRANCH..."
-          gh api repos/cmse822/$repo/merges -X POST -f base=$NEW_BRANCH -f head=$TEMPLATE_REPO:$TEMPLATE_BRANCH || {
-            echo "Error: Merge failed for $repo"
-            continue
-          }
-
-          # Create a pull request
-          echo "Creating pull request in $repo"
-          gh pr create --repo cmse822/$repo --head $NEW_BRANCH --base $TARGET_BRANCH --title "Update from Template Repository" --body "This PR merges updates from the template repository. Please review and merge." || {
-            echo "Error: Failed to create PR in $repo"
-            continue
-          }
+          # Attempt to create a PR directly from template/main → student/main
+          gh pr create --repo cmse822/$repo \
+            --head $TEMPLATE_REPO:$TEMPLATE_BRANCH \
+            --base main \
+            --title "Update from Template Repository" \
+            --body "This pull request includes updates from the template repository's main branch. Please review and merge to incorporate the latest changes." || {
+              echo "Error: Failed to create PR in $repo"
+              continue
+            }
 
           echo "Pull request created for repository: $repo"
           sleep 2  # Prevent rate-limiting issues
