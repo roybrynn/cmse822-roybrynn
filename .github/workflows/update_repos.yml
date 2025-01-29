@@ -34,7 +34,7 @@ jobs:
         # Replace <your-org> with your GitHub organization name
         gh api orgs/cmse822/repos --paginate --jq '.[] | select(.name | startswith("cmse822-ss25-")) | .name' > student_repos.txt
         cat student_repos.txt
-        
+
     - name: Create Pull Requests in Student Repositories
       run: |
         TEMPLATE_REPO="cmse822/cmse822-codex-ss25"
@@ -51,7 +51,7 @@ jobs:
           NEW_BRANCH="update-from-template-$(date +%s)"
           
           # Create a branch in the student repo from the template's main
-          gh api repos/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha=$(gh api repos/$TEMPLATE_REPO/git/refs/heads/$TEMPLATE_BRANCH | jq -r .object.sha)
+          gh api repos/cmse822/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha=$(gh api repos/$TEMPLATE_REPO/git/refs/heads/$TEMPLATE_BRANCH | jq -r .object.sha)
           
           # Create a pull request from the new branch to the student's main branch
           gh pr create --repo $repo --head $NEW_BRANCH --base $TARGET_BRANCH --title "Update from Template Repository" --body "This pull request includes updates from the template repository's main branch. Please review and merge to incorporate the latest changes."
