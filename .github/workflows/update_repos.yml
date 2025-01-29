@@ -1,0 +1,59 @@
+# .github/workflows/update_students.yml
+name: Update Student Repositories
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-students:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Template Repository
+      uses: actions/checkout@v3
+
+    - name: Install GitHub CLI
+      run: |
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        sudo apt update
+        sudo apt install gh -y
+
+    - name: Authenticate GitHub CLI
+      env:
+        GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
+      run: |
+        echo $GITHUB_TOKEN | gh auth login --with-token
+
+    - name: Get List of Student Repositories
+      id: get_repos
+      run: |
+        # Replace <your-org> with your GitHub organization name
+        gh api orgs/cmse822/repos --paginate --jq '.[] | select(.name | startswith("cmse822-ss25-")) | .name' > student_repos.txt
+
+    - name: Create Pull Requests in Student Repositories
+      run: |
+        TEMPLATE_REPO="cmse822/cmse822-codex-ss25"
+        TEMPLATE_BRANCH="main"
+        
+        while read repo; do
+          echo "Processing repository: $repo"
+          
+          # Define the source and target branches
+          SOURCE_BRANCH="$TEMPLATE_BRANCH"
+          TARGET_BRANCH="main"
+          
+          # Define a unique branch name for the PR in the student repo
+          NEW_BRANCH="update-from-template-$(date +%s)"
+          
+          # Create a branch in the student repo from the template's main
+          gh api repos/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha=$(gh api repos/$TEMPLATE_REPO/git/refs/heads/$TEMPLATE_BRANCH | jq -r .object.sha)
+          
+          # Create a pull request from the new branch to the student's main branch
+          gh pr create --repo $repo --head $NEW_BRANCH --base $TARGET_BRANCH --title "Update from Template Repository" --body "This pull request includes updates from the template repository's main branch. Please review and merge to incorporate the latest changes."
+          
+          echo "Pull request created for repository: $repo"
+        done < student_repos.txt
