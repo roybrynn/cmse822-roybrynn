@@ -24,37 +24,68 @@ jobs:
 
     - name: Authenticate GitHub CLI
       env:
-        PAT_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
       run: |
-        echo $PAT_TOKEN | gh auth login --with-token
+        gh auth status
 
     - name: Get List of Student Repositories
       id: get_repos
+      env:
+        GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
       run: |
-        # Replace <your-org> with your GitHub organization name
+        echo "Fetching student repositories..."
         gh api orgs/cmse822/repos --paginate --jq '.[] | select(.name | startswith("cmse822-ss25-")) | .name' > student_repos.txt
+        echo "Student repositories found:"
         cat student_repos.txt
 
-    - name: Create Pull Requests in Student Repositories
+    - name: Get Template Repository Latest Commit SHA
+      id: get_template_sha
+      env:
+        GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
       run: |
         TEMPLATE_REPO="cmse822/cmse822-codex-ss25"
         TEMPLATE_BRANCH="main"
-        
+
+        echo "Fetching latest commit SHA from $TEMPLATE_REPO ($TEMPLATE_BRANCH)..."
+        SHA=$(gh api repos/$TEMPLATE_REPO/git/refs/heads/$TEMPLATE_BRANCH --jq .object.sha)
+
+        if [[ -z "$SHA" ]]; then
+          echo "Error: Unable to retrieve SHA for $TEMPLATE_BRANCH in $TEMPLATE_REPO"
+          exit 1
+        fi
+
+        echo "SHA retrieved: $SHA"
+        echo "SHA=$SHA" >> $GITHUB_ENV
+
+    - name: Create Pull Requests in Student Repositories
+      env:
+        GITHUB_TOKEN: ${{ secrets.CLASSROOM_TOKEN }}
+      run: |
+        TEMPLATE_REPO="cmse822/cmse822-codex-ss25"
+        TEMPLATE_BRANCH="main"
+
         while read repo; do
           echo "Processing repository: $repo"
-          
-          # Define the source and target branches
-          SOURCE_BRANCH="$TEMPLATE_BRANCH"
-          TARGET_BRANCH="main"
-          
-          # Define a unique branch name for the PR in the student repo
+
+          # Define the new branch name for the PR
           NEW_BRANCH="update-from-template-$(date +%s)"
-          
-          # Create a branch in the student repo from the template's main
-          gh api repos/cmse822/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha=$(gh api repos/$TEMPLATE_REPO/git/refs/heads/$TEMPLATE_BRANCH | jq -r .object.sha)
-          
-          # Create a pull request from the new branch to the student's main branch
-          gh pr create --repo $repo --head $NEW_BRANCH --base $TARGET_BRANCH --title "Update from Template Repository" --body "This pull request includes updates from the template repository's main branch. Please review and merge to incorporate the latest changes."
-          
+          TARGET_BRANCH="main"
+
+          echo "Creating new branch $NEW_BRANCH in $repo from SHA $SHA"
+
+          # Create a new branch in the student repository from the template's main branch
+          gh api repos/cmse822/$repo/git/refs -X POST -f ref="refs/heads/$NEW_BRANCH" -f sha="$SHA" || {
+            echo "Error: Failed to create branch in $repo"
+            continue
+          }
+
+          echo "Creating pull request in $repo"
+          gh pr create --repo cmse822/$repo --head $NEW_BRANCH --base $TARGET_BRANCH --title "Update from Template Repository" --body "This PR merges updates from the template repository. Please review and merge." || {
+            echo "Error: Failed to create PR in $repo"
+            continue
+          }
+
           echo "Pull request created for repository: $repo"
+          sleep 2  # Prevent rate-limiting issues
+
         done < student_repos.txt
