@@ -48,8 +48,8 @@ jobs:
         while read repo; do
           echo "Processing repository: $repo"
 
-          # Clone the student's repository
-          git clone "https://github.com/cmse822/$repo.git"
+          # Clone the student's repository using authentication
+          git clone "https://${GITHUB_TOKEN}@github.com/cmse822/$repo.git"
           cd "$repo"
 
           # Set up git credentials
