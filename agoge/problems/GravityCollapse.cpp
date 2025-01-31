@@ -43,49 +43,21 @@ void GravityCollapse::initialize(Field3D &Q, const ParameterSystem &params) {
     std::string gravMethod = params.getString(prefix + "grav_method");
     if (gravMethod.empty()) gravMethod = "cooley_tukey";  // default
 
-    // 2) We fix domain => [-1.2R, +1.2R] in each dimension => length = 2.4R
-    // The user presumably sets Nx,Ny,Nz in the top-level param (like
-    // param["nx"], etc.)
-    int Nx = Q.Nx;  // we read the Nx from the existing Q. The user must set Nx
-    int Ny = Q.Ny;
-    int Nz = Q.Nz;
-
-    double sideLength = 2.4 * Rjean;  // for each dimension
-    // We'll assume the user *passed* Nx,Ny,Nz but we override Q.dx, Q.dy, Q.dz
-    // so that domain is exactly 2.4 R in each dimension.
-    Q.dx = sideLength / Nx;
-    Q.dy = sideLength / Ny;
-    Q.dz = sideLength / Nz;
-
-    // We also might want to shift the domain center to [-1.2R, +1.2R].
-    // Let's define an origin shift so that cell centers range from -1.2R to
-    // +1.2R
-    double x0 = -1.2 * Rjean;  // left edge in x
-    double y0 = -1.2 * Rjean;
-    double z0 = -1.2 * Rjean;
-
-    std::cout << "[GravityCollapse] Setting domain to "
-              << "[" << x0 << "," << (x0 + sideLength) << "] x"
-              << "[" << y0 << "," << (y0 + sideLength) << "] x"
-              << "[" << z0 << "," << (z0 + sideLength) << "]\n"
-              << "with Nx=" << Nx << ",Ny=" << Ny << ",Nz=" << Nz
-              << " => dx=" << Q.dx << ",dy=" << Q.dy << ",dz=" << Q.dz << "\n";
-
-    // 3) Fill Q:
+    // Fill Q:
     // inside radius => uniform density
     // outside => zero. velocities=0, E=0 => cold dust
     double volumeSphere = (4.0 / 3.0) * M_PI * (Rjean * Rjean * Rjean);
     double rhoInside = M / volumeSphere;  // total mass / volume of sphere
 
-    for (int k = 0; k < Nz; k++) {
-        for (int j = 0; j < Ny; j++) {
-            for (int i = 0; i < Nx; i++) {
-                int idx = Q.index(i, j, k);
+    for (int k = 0; k < Q.Nz; k++) {
+        for (int j = 0; j < Q.Ny; j++) {
+            for (int i = 0; i < Q.Nx; i++) {
+                int idx = Q.interiorIndex(i, j, k);
 
                 // cell center
-                double xC = x0 + (i + 0.5) * Q.dx;
-                double yC = y0 + (j + 0.5) * Q.dy;
-                double zC = z0 + (k + 0.5) * Q.dz;
+                double xC = Q.xCenter(i);
+                double yC = Q.yCenter(j);
+                double zC = Q.zCenter(k);
                 double r2 = xC * xC + yC * yC + zC * zC;
                 double R2 = Rjean * Rjean;
 
@@ -125,17 +97,16 @@ void GravityCollapse::initialize(Field3D &Q, const ParameterSystem &params) {
     // We'll do an L1, L2 norm over the entire grid.
     double sumAbs = 0.0;
     double sumSqr = 0.0;
-    long count = Nx * Ny * Nz;
+    long count = Q.Nx * Q.Ny * Q.Nz;
 
-    for (int k = 0; k < Nz; k++) {
-        for (int j = 0; j < Ny; j++) {
-            for (int i = 0; i < Nx; i++) {
-                int idx = Q.index(i, j, k);
-
-                double xC = x0 + (i + 0.5) * Q.dx;
-                double yC = y0 + (j + 0.5) * Q.dy;
-                double zC = z0 + (k + 0.5) * Q.dz;
-                double rr = std::sqrt(xC * xC + yC * yC + zC * zC);
+    for (int k = 0; k < Q.Nz; k++) {
+        for (int j = 0; j < Q.Ny; j++) {
+            for (int i = 0; i < Q.Nx; i++) {
+                int idx = Q.interiorIndex(i, j, k);
+                
+                double rr = std::sqrt(Q.xCenter(i) * Q.xCenter(i) +
+                                      Q.yCenter(j) * Q.yCenter(j) +
+                                      Q.zCenter(k) * Q.zCenter(k));
 
                 double phiExact = 0.0;
                 if (rr <= Rjean) {

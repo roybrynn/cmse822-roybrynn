@@ -268,7 +268,7 @@ void solvePoisson(Field3D &Q, GravityMethod method)
     for(int k=0; k<Nz; k++){
       for(int j=0; j<Ny; j++){
         for(int i=0; i<Nx; i++){
-          int idx = Q.index(i,j,k);
+          int idx = Q.interiorIndex(i,j,k);
           realBuf[idx] = Q.rho[idx];
         }
       }
