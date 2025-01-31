@@ -83,9 +83,10 @@ void writeFieldHDF5(const Field3D &Q, const std::string &filename) {
         DataSpace attr_space_bbox(2, adims_bbox);
         Attribute attr_bbox = grid.createAttribute(
             "bounding_box", PredType::NATIVE_DOUBLE, attr_space_bbox);
-        double bbox[3][2] = {
-            {0.0, Q.Nx * Q.dx}, {0.0, Q.Ny * Q.dy}, {0.0, Q.Nz * Q.dz}};
-        attr_bbox.write(PredType::NATIVE_DOUBLE, bbox);
+        const BoundingBox &bbox = Q.getBoundingBox();
+        double bbox_data[6] = {bbox.xmin, bbox.xmax, bbox.ymin,
+                               bbox.ymax, bbox.zmin, bbox.zmax};
+        attr_bbox.write(PredType::NATIVE_DOUBLE, bbox_data);        
     }
 
     std::cout << "HDF5 file written to: " << filename << std::endl;

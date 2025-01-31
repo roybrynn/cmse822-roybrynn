@@ -16,7 +16,12 @@ void ParameterSystem::setDefaults() {
 
     defaults_["cfl"] = "0.5";
     defaults_["use_gravity"] = "false";
-    defaults_["domain"] = "[1.0, 1.0, 1.0]";
+    defaults_["xmin"] = "0.0";
+    defaults_["xmax"] = "1.0";
+    defaults_["ymin"] = "0.0";
+    defaults_["ymax"] = "1.0";
+    defaults_["zmin"] = "0.0";
+    defaults_["zmax"] = "1.0";
     defaults_["sound_crossings"] = "1.0";
 
     defaults_["problem_name"] = "\"sod\"";

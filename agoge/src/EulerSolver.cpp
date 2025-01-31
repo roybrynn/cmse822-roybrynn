@@ -66,9 +66,8 @@ static inline double minmod(double a, double b) {
 /**
  * @brief computeGravityAccel from ghosted field. We'll do central difference.
  */
-static inline void computeGravityAccel(const Field3D &Q, int iG, int jG,
-                                       int kG, double &gx, double &gy,
-                                       double &gz) {
+static inline void computeGravityAccel(const Field3D &Q, int iG, int jG, int kG,
+                                       double &gx, double &gy, double &gz) {
     // We'll do i-1 => iG-1, i+1 => iG+1, etc. We assume it is valid because
     // ghost cells exist.
     double dx = Q.dx, dy = Q.dy, dz = Q.dz;
@@ -148,8 +147,8 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 // left cell is iF-1, right cell is iF, in interior coords
                 // if iF=0 => left cell is iF-1= -1 => that's in ghost region
                 // but Q has ghost cells => so let iL= iF-1.
-                
-                int cL = Q.interiorIndex(i-1, j, k);
+
+                int cL = Q.interiorIndex(i - 1, j, k);
                 int cR = Q.interiorIndex(i, j, k);
 
                 // slope-limited states
@@ -157,7 +156,7 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 auto UR = getU(cR);
 
                 // we can do minmod slope from neighbors cL-1, cL+1, etc., or do
-                // simpler approach for brevity, let's do 1st-order 
+                // simpler approach for brevity, let's do 1st-order
 
                 double aL = waveSpeed(UL[0], UL[1], UL[2], UL[3], UL[4]);
                 double aR = waveSpeed(UR[0], UR[1], UR[2], UR[3], UR[4]);
@@ -249,12 +248,9 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
 //=====================================================
 void runRK2(Field3D &Q, double dt) {
     // create Qtemp, LQ etc. sized with same ghost
-    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-                  Q.nghost);
-    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-               Q.nghost);
-    Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-                   Q.nghost);
+    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
+    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
+    Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
 
     // copy BC flags
     Qtemp.bc_xmin = Q.bc_xmin;
