@@ -1,0 +1,41 @@
+# === ERT Configuration File for MSU HPCC ===
+
+# Set where results should be stored (relative or absolute path)
+ERT_RESULTS="./ERT_Results"
+
+# Specify the theoretical peak values of the machine (if known).
+# This is optional, but it helps compare measured vs. theoretical performance.
+ERT_SPEC_GBYTES_DRAM=200       # Peak DRAM bandwidth (GB/s) - adjust per node type
+ERT_SPEC_GFLOPS=5000           # Peak theoretical GFLOP/s - adjust per node type
+
+# === Compilation Settings ===
+ERT_CC="gcc"                   # Use GCC; can change to Intel (icc) or Clang
+ERT_CFLAGS="-O3 -march=native"  # Optimization flags for best performance
+
+# Linker settings (usually empty unless specific libraries are required)
+ERT_LD="gcc"
+ERT_LDFLAGS=""
+ERT_LDLIBS=""
+
+# === ERT Microkernel Settings ===
+ERT_DRIVER="driver1"            # Use default driver1
+ERT_KERNEL="kernel1"            # Use default kernel1
+ERT_FLOPS="8"                   # FLOPs per computational element (default: double precision)
+ERT_ALIGN=64                    # Data alignment in bits (typically cache-line size)
+
+# === Parallelism Settings (Set to Serial Mode) ===
+ERT_MPI="False"                 # Disable MPI
+ERT_OPENMP="False"              # Disable OpenMP
+ERT_GPU="False"                 # Disable GPU offloading
+
+# === Execution Settings ===
+ERT_RUN="./ERT_CODE"            # Command to execute the benchmark
+
+# === Experiment Settings ===
+ERT_NUM_EXPERIMENTS=3           # Repeat experiments for statistical consistency
+ERT_MEMORY_MAX=$((2**30))        # 1 GB maximum memory usage
+ERT_WORKING_SET_MIN=8192         # Minimum working set size in double precision values
+ERT_TRIALS_MIN=10                # Minimum number of trials to run for each case
+
+# === Output and Post-processing ===
+ERT_GNUPLOT="gnuplot"           # Use GNUplot for visualization
