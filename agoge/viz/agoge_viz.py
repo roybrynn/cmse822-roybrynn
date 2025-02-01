@@ -1,25 +1,7 @@
-#!/usr/bin/env python3
-"""
-agoge_viz.py
-
-Visualize Field3D data from Agoge HDF5 files.
-The file stores fields (rho, rhou, rhov, rhow, E, phi) as 3D datasets and
-includes spatial coordinate arrays (x, y, z) and grid metadata in the '/grid' group.
-
-Usage:
-    python agoge_viz.py <filename.h5> [--field rho|rhou|rhov|rhow|E|phi] [--slice axis index]
-
-Optional:
-    --slice: Provide an axis (x, y, or z) and an index for slicing.
-    If yt is installed, an additional projection plot is generated.
-"""
-
-import argparse
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Optionally import yt for volumetric rendering.
+import argparse
 try:
     import yt
 except ImportError:
@@ -31,23 +13,50 @@ def load_agoge_data(filename):
         # Read field datasets from the file's root group.
         for field in ["rho", "rhou", "rhov", "rhow", "E", "phi"]:
             data[field] = np.array(f[field])
-        # Read spatial coordinates and metadata from the '/grid' group.
         grid = f["/grid"]
-        for coord in ["x", "y", "z"]:
-            if coord in grid:
-                data[coord] = np.array(grid[coord])
-            else:
-                data[coord] = None
-        # Optionally, load additional attributes such as domain dimensions.
+        
+        # Get attributes if available.
+        bbox = None
+        if "bounding_box" in grid.attrs:
+            bbox = np.array(grid.attrs["bounding_box"], dtype=float)
+        domain_dims = None
         if "domain_dimensions" in grid.attrs:
-            data["domain_dimensions"] = grid.attrs["domain_dimensions"]
+            domain_dims = np.array(grid.attrs["domain_dimensions"], dtype=int)
+        cell_size = None
         if "cell_size" in grid.attrs:
-            data["cell_size"] = grid.attrs["cell_size"]
+            cell_size = np.array(grid.attrs["cell_size"], dtype=float)
+            
+        # Compute coordinate arrays from bounding box if available.
+        if bbox is not None and domain_dims is not None:
+            # bbox: [xmin, xmax, ymin, ymax, zmin, zmax]
+            xmin, xmax, ymin, ymax, zmin, zmax = bbox
+            Nx, Ny, Nz = domain_dims
+            # Use cell_size if provided, otherwise compute from bbox.
+            if cell_size is not None:
+                dx, dy, dz = cell_size
+            else:
+                dx = (xmax - xmin) / Nx
+                dy = (ymax - ymin) / Ny
+                dz = (zmax - zmin) / Nz
+            # Compute cell-center coordinates.
+            x_coords = np.array([xmin + (i + 0.5) * dx for i in range(Nx)])
+            y_coords = np.array([ymin + (j + 0.5) * dy for j in range(Ny)])
+            z_coords = np.array([zmin + (k + 0.5) * dz for k in range(Nz)])
+            data["x"] = x_coords
+            data["y"] = y_coords
+            data["z"] = z_coords
+        else:
+            # Fall back to reading coordinate arrays as stored.
+            for coord in ["x", "y", "z"]:
+                if coord in grid:
+                    data[coord] = np.array(grid[coord])
+                else:
+                    data[coord] = None
+
     return data
 
 def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
-    # Field data is stored as (Nz, Ny, Nx) (row-major order).
-    if axis == 'z':
+    if axis.lower() == 'z':
         if index is None:
             index = field_data.shape[0] // 2
         slice_data = field_data[index, :, :]
@@ -58,7 +67,7 @@ def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
         plt.ylabel("y")
         plt.title(f"{field_name} at z-slice index {index}")
         plt.colorbar()
-    elif axis == 'y':
+    elif axis.lower() == 'y':
         if index is None:
             index = field_data.shape[1] // 2
         slice_data = field_data[:, index, :]
@@ -69,7 +78,7 @@ def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
         plt.ylabel("z")
         plt.title(f"{field_name} at y-slice index {index}")
         plt.colorbar()
-    elif axis == 'x':
+    elif axis.lower() == 'x':
         if index is None:
             index = field_data.shape[2] // 2
         slice_data = field_data[:, :, index]
