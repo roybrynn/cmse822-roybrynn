@@ -5,15 +5,15 @@
 
 namespace agoge {
 
-Field3D::Field3D(int nx, int ny, int nz, const BoundingBox& bbox_in, int ghost)
+Field3D::Field3D(int nx, int ny, int nz, const BoundingBox &bbox_in, int ghost)
     : Nx(nx),
       Ny(ny),
       Nz(nz),
       nghost(ghost),
+      dx((bbox_in.xmax - bbox_in.xmin) / nx),
+      dy((bbox_in.ymax - bbox_in.ymin) / ny),
+      dz((bbox_in.zmax - bbox_in.zmin) / nz),
       bbox(bbox_in),  // Initialize BoundingBox member
-      dx((bbox.xmax - bbox.xmin) / Nx),
-      dy((bbox.ymax - bbox.ymin) / Ny),
-      dz((bbox.zmax - bbox.zmin) / Nz),
       bc_xmin(config::BoundaryCondition::PERIODIC),
       bc_xmax(config::BoundaryCondition::PERIODIC),
       bc_ymin(config::BoundaryCondition::PERIODIC),

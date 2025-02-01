@@ -1,11 +1,8 @@
 // HDF5_IO.cpp
 #include "HDF5_IO.hpp"
-
 #include <H5Cpp.h>
-
 #include <iostream>
 #include <vector>
-
 #include "Field3d.hpp"
 
 namespace agoge {
@@ -36,7 +33,7 @@ void writeFieldHDF5(const Field3D &Q, const std::string &filename) {
         for (int k = 0; k < Q.Nz; ++k) {
             for (int j = 0; j < Q.Ny; ++j) {
                 for (int i = 0; i < Q.Nx; ++i) {
-                    size_t idxQ = i + Q.Nx * (j + Q.Ny * k);
+                    size_t idxQ = Q.interiorIndex(i, j, k);
                     size_t idxBuf = static_cast<size_t>(k) * (Q.Ny * Q.Nx) +
                                     static_cast<size_t>(j) * Q.Nx +
                                     static_cast<size_t>(i);
