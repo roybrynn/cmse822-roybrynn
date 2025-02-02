@@ -52,17 +52,16 @@ def load_agoge_data(filename):
                     data[coord] = np.array(grid[coord])
                 else:
                     data[coord] = None
-
     return data
 
-def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
+def plot_field(field_data, x, y, z, axis='z', index=None, field_name="rho", vmin=None, vmax=None):
     if axis.lower() == 'z':
         if index is None:
             index = field_data.shape[0] // 2
-        slice_data = field_data[index, :, :]
+        slice_data = field_data[:, :, index]
         X, Y = np.meshgrid(x, y, indexing='xy')
         plt.figure()
-        plt.contourf(X, Y, slice_data, cmap='viridis')
+        plt.contourf(X, Y, slice_data, cmap='viridis', vmin=vmin, vmax=vmax)
         plt.xlabel("x")
         plt.ylabel("y")
         plt.title(f"{field_name} at z-slice index {index}")
@@ -73,7 +72,7 @@ def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
         slice_data = field_data[:, index, :]
         X, Z = np.meshgrid(x, z, indexing='xy')
         plt.figure()
-        plt.contourf(X, Z, slice_data, cmap='viridis')
+        plt.contourf(X, Z, slice_data, cmap='viridis', vmin=vmin, vmax=vmax)
         plt.xlabel("x")
         plt.ylabel("z")
         plt.title(f"{field_name} at y-slice index {index}")
@@ -81,10 +80,10 @@ def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
     elif axis.lower() == 'x':
         if index is None:
             index = field_data.shape[2] // 2
-        slice_data = field_data[:, :, index]
+        slice_data = field_data[index, :, :]
         Y, Z = np.meshgrid(y, z, indexing='xy')
         plt.figure()
-        plt.contourf(Y, Z, slice_data, cmap='viridis')
+        plt.contourf(Y, Z, slice_data, cmap='viridis', vmin=vmin, vmax=vmax)
         plt.xlabel("y")
         plt.ylabel("z")
         plt.title(f"{field_name} at x-slice index {index}")
@@ -92,7 +91,7 @@ def plot_field(field_data, x, y, z, axis='z', index=None, field_name="Field"):
     else:
         raise ValueError("Axis must be one of 'x', 'y', or 'z'")
     plt.show()
-
+    
 def plot_line(x, data_list, labels, title="", xlabel="x", ylabel="Field Value", styles=None):
     """
     Plot 1D line data where x is common for each dataset.

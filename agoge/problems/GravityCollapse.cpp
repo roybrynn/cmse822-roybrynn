@@ -49,15 +49,19 @@ void GravityCollapse::initialize(Field3D &Q, const ParameterSystem &params) {
     double volumeSphere = (4.0 / 3.0) * M_PI * (Rjean * Rjean * Rjean);
     double rhoInside = M / volumeSphere;  // total mass / volume of sphere
 
+    double xMid = (Q.bbox.xmax - Q.bbox.xmin) / 2.0;
+    double yMid = (Q.bbox.ymax - Q.bbox.ymin) / 2.0;
+    double zMid = (Q.bbox.zmax - Q.bbox.zmin) / 2.0;
+
     for (int k = 0; k < Q.Nz; k++) {
         for (int j = 0; j < Q.Ny; j++) {
             for (int i = 0; i < Q.Nx; i++) {
                 int idx = Q.interiorIndex(i, j, k);
 
                 // cell center
-                double xC = Q.xCenter(i);
-                double yC = Q.yCenter(j);
-                double zC = Q.zCenter(k);
+                double xC = Q.xCenter(i) - xMid;
+                double yC = Q.yCenter(j) - yMid;
+                double zC = Q.zCenter(k) - zMid;
                 double r2 = xC * xC + yC * yC + zC * zC;
                 double R2 = Rjean * Rjean;
 
