@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
     problem->initialize(Q, params);
 
     bool gravityEnabled = params.getBool("use_gravity");
-    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED")
+    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED") << ", G: " << agoge::config::G
               << "\n";
 
     // 4) Set up boundary conditions (once), reading from param
