@@ -25,7 +25,7 @@ Department of Physics and Astronomy
 Department of Computational Mathematics, Science, and Engineering  
 Facility for Rare Isotope Beams  
 Office: 3260 BPS  
-Office hours: _by appointment_  
+Office hours: after class or by apointment  
 Zoom: [msu.zoom.us/my/scouch](http://msu.zoom.us/my/scouch)  
 [scouch@msu.edu](mailto:scouch@msu.edu)  
 
@@ -134,15 +134,15 @@ Your final grade will be no lower than that indicated on the above scale, though
 
 The _tentative_ detailed course schedule is available [here](schedule.md). Updates and details will also be made on that page and communicated via the course Slack channel. The course will cover the following topics.
 
-1. **Performance Profiling and Optimization**
-2. **Parallel Computing Theory**
-3. **Message Passing Interface (MPI) Basics**
-4. **Advanced MPI Topics**
-5. **Parallel Algorithms and Computational Patterns**
-6. **GPU Programming**
-7. **Hybrid Computing**
-8. **Load Balancing and Scalability**
-9. **Validation and Testing**
+- **Performance Profiling and Optimization**
+- **Parallel Computing Theory**
+- **Parallel Algorithms and Computational Patterns**
+- **Message Passing Interface (MPI) Basics**
+- **Advanced MPI Topics**
+- **GPU Programming**
+- **Hybrid Computing**
+- **Load Balancing and Scalability**
+- **Validation and Testing**
 
 ### Spartan Code of Honor Academic Pledge
 
@@ -156,14 +156,14 @@ In particular, plagiarism of any kind will result in the complete loss of credit
 
 **Related Policies:** 
 Institutional Data Policy: 
-https://tech.msu.edu/about/guidelines-policies/msu-institutional-data-policy/ 
+<https://tech.msu.edu/about/guidelines-policies/msu-institutional-data-policy/> 
 Student Privacy Guidelines and Notification of Rights under FERPA 
-https://reg.msu.edu/ROInfo/Notices/PrivacyGuidelines.aspx
+<https://reg.msu.edu/ROInfo/Notices/PrivacyGuidelines.aspx>
 
 As members of a learning community, students are expected to respect the intellectual property of course instructors. All course materials presented to students are the copyrighted property of the course instructor and are subject to the following conditions of use:
 
 1. Students may record lectures or an other classroom activities and use the recordings only for their own course-related purposes.
 2. Students may share the recordings with other students enrolled in the class. Sharing is limited to using the recordings only for their own course-related purposes.
-3. Video and audio recordings made of online lectures may contain inaudible or invisible watermarks to identify shared media: https://support.zoom.us/hc/en-us/articles/360021839031-Audio-Watermark
+3. Video and audio recordings made of online lectures may contain inaudible or invisible watermarks to identify shared media: <https://support.zoom.us/hc/en-us/articles/360021839031-Audio-Watermark>
 4. Students may not post the recordings or other course materials online or distribute them to anyone not enrolled in the class without the advance written permission of the course instructor and, if applicable, any students whose voice or image is included in the recordings.
 5. Any student violating the conditions described above may face academic disciplinary sanctions.
