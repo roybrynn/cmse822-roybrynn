@@ -1,6 +1,6 @@
 # Codex of Course Materials for CMSE 822
 
-Central repository for CMSE 822 course materials. For Spring 2025.
+Central repository for CMSE 822 course materials.
 
 ## License Information
 
