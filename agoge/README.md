@@ -153,7 +153,7 @@ module purge
 module load HDF5
 
 # Navigate to the agoge directory
-cd $SLURM
+cd $SLURM_SUBMIT_DIR
 
 # Run the executable with the desired problem configuration
 ./agoge_run ../problems/SodShockTube.yaml
