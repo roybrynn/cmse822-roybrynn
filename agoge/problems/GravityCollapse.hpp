@@ -1,59 +1,57 @@
 #pragma once
 
+#include <string>
+
 #include "../include/agoge/Field3d.hpp"
 #include "../include/agoge/ParameterSystem.hpp"
 #include "Problem.hpp"
 
 /**
  * @class GravityCollapse
- * @brief Implements a 3D cold dust sphere with periodic BC, checking
- * gravitational potential.
+ * @brief Implements a cold dust sphere with self-gravity.
+ *
+ * Initializes a uniform-density sphere (with total mass and Jeans radius
+ * parameters), solves Poisson's equation for the gravitational potential using
+ * the custom FFT-based solver, and computes L₁ and L₂ error norms by comparing
+ * with the analytic uniform-sphere potential.
  */
 namespace agoge {
 namespace problems {
 
-/**
- * @brief GravityCollapse initializes a uniform-density sphere of mass=1 (by
- * default), radius = R_jeans (by default), domain from -1.2*R to +1.2*R in each
- * dimension. We solve Poisson eqn and compare with the exact uniform-sphere
- * potential for error norms.
- */
 class GravityCollapse : public Problem {
    public:
     GravityCollapse() = default;
     virtual ~GravityCollapse() = default;
 
     /**
-     * @brief Initialize the cold dust collapse problem in Q:
-     *        - Nx, Ny, Nz from user (ParameterSystem).
-     *        - Mass = 1.0 (by default) => radius => R_jeans => domain =>
-     * [-1.2R, 1.2R].
-     *        - Inside sphere => constant rho, outside => 0.
-     *        - velocities=0, E=0.
-     *        Then solve Poisson, compare phi with analytic, print L1,L2.
+     * @brief Initialize the Field3D with problem-specific initial conditions.
      *
-     * @param Q The field to initialize.
-     * @param params The ParameterSystem instance containing parameters.
+     * Sets up a spherical density distribution: inside the sphere a uniform
+     * density, outside a low floor value. Velocities and energy are set to near
+     * zero (cold dust). Then solves Poisson's equation and computes error
+     * norms.
+     *
+     * @param Q      The Field3D object to initialize.
+     * @param params The ParameterSystem containing problem parameters.
      */
     void initialize(Field3D &Q, const ParameterSystem &params) override;
 
     /**
-     * @brief Register problem-specific default parameters with the
-     * ParameterSystem.
+     * @brief Register default parameters for the GravityCollapse problem.
      *
-     * For instance:
-     *   GravityCollapse.mass_solar => "1.0"
-     *   GravityCollapse.jeans_radius => "1.0"
-     *   etc.
+     * Defaults include:
+     *   - mass_solar (total mass)
+     *   - r_jeans (Jeans radius)
+     *   - grav_method ("cooley_tukey" by default)
      *
-     * @param params The ParameterSystem instance.
+     * @param params The ParameterSystem to which defaults are added.
      */
     void registerParameters(ParameterSystem &params) const override;
 
-    /// We do use gravity
+    /// Indicate that this problem uses gravity.
     bool useGravity() const override { return true; }
 
-    /// Problem name
+    /// Return the name of the problem.
     std::string name() const override { return "GravityCollapse"; }
 };
 

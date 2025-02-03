@@ -5,15 +5,15 @@
 
 namespace agoge {
 
-Field3D::Field3D(int nx, int ny, int nz, double dx_, double dy_, double dz_,
-                 int ghost)
+Field3D::Field3D(int nx, int ny, int nz, const BoundingBox &bbox_in, int ghost)
     : Nx(nx),
       Ny(ny),
       Nz(nz),
       nghost(ghost),
-      dx(dx_),
-      dy(dy_),
-      dz(dz_),
+      dx((bbox_in.xmax - bbox_in.xmin) / nx),
+      dy((bbox_in.ymax - bbox_in.ymin) / ny),
+      dz((bbox_in.zmax - bbox_in.zmin) / nz),
+      bbox(bbox_in),  // Initialize BoundingBox member
       bc_xmin(config::BoundaryCondition::PERIODIC),
       bc_xmax(config::BoundaryCondition::PERIODIC),
       bc_ymin(config::BoundaryCondition::PERIODIC),
@@ -32,6 +32,30 @@ Field3D::Field3D(int nx, int ny, int nz, double dx_, double dy_, double dz_,
     E.resize(totalSize, 0.0);
     phi.resize(totalSize, 0.0);
 }
+
+//======================================================
+// Spatial coordinate methods
+//======================================================
+// The left edge of the interior domain is at the start of cell i=0 =>
+// if you want a global offset X0, define it as a member.
+// For now, assume X0=0.
+// Cell iIn's center => (iIn+0.5)*dx.
+// We do NOT add nghost here because that's an array index offset only.
+// If the physical domain truly starts at X0, then:
+//   x= X0 + (iIn+0.5)*dx
+// That ensures iIn in [0..Nx-1] => x in [0.5*dx.. Nx-0.5]*dx.
+
+double Field3D::xCenter(int iIn) const { return (iIn + 0.5) * dx; }
+double Field3D::xLeftEdge(int iIn) const { return (double)(iIn)*dx; }
+double Field3D::xRightEdge(int iIn) const { return (double)(iIn + 1) * dx; }
+
+double Field3D::yCenter(int jIn) const { return (jIn + 0.5) * dy; }
+double Field3D::yLeftEdge(int jIn) const { return jIn * dy; }
+double Field3D::yRightEdge(int jIn) const { return (jIn + 1) * dy; }
+
+double Field3D::zCenter(int kIn) const { return (kIn + 0.5) * dz; }
+double Field3D::zLeftEdge(int kIn) const { return kIn * dz; }
+double Field3D::zRightEdge(int kIn) const { return (kIn + 1) * dz; }
 
 /**
  * @brief copy boundary or wrap for periodic

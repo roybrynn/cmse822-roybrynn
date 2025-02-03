@@ -66,9 +66,8 @@ static inline double minmod(double a, double b) {
 /**
  * @brief computeGravityAccel from ghosted field. We'll do central difference.
  */
-static inline void computeGravityAccel(const Field3D &Q, int iG, int jG,
-                                       int kG, double &gx, double &gy,
-                                       double &gz) {
+static inline void computeGravityAccel(const Field3D &Q, int iG, int jG, int kG,
+                                       double &gx, double &gy, double &gz) {
     // We'll do i-1 => iG-1, i+1 => iG+1, etc. We assume it is valid because
     // ghost cells exist.
     double dx = Q.dx, dy = Q.dy, dz = Q.dz;
@@ -90,131 +89,6 @@ static inline void computeGravityAccel(const Field3D &Q, int iG, int jG,
     gx = -(phiR - phiL) / (2. * dx);
     gy = -(phiU - phiD) / (2. * dy);
     gz = -(phiF - phiB) / (2. * dz);
-}
-
-//------------------------------------------------
-// Minimal artificial viscosity with ghosted Field
-//------------------------------------------------
-static void applyArtificialViscosity(const Field3D &Q, Field3D &LQ,
-                                     double alpha = 0.1) {
-    agoge::PerformanceMonitor::instance().startTimer("applyArtificialVisc");
-
-    int nx = Q.Nx, ny = Q.Ny, nz = Q.Nz;
-    // total ghosted size:
-    int NxG = Q.NxGhost, NyG = Q.NyGhost, NzG = Q.NzGhost;
-    double dx = Q.dx, dy = Q.dy, dz = Q.dz;
-    double h = std::min({dx, dy, dz});
-
-    // 1) compute divU for interior cells
-    std::vector<double> divU(NxG * NyG * NzG, 0.0);
-
-    for (int kIn = 0; kIn < nz; kIn++) {
-        for (int jIn = 0; jIn < ny; jIn++) {
-            for (int iIn = 0; iIn < nx; iIn++) {
-                // map to ghost
-                int iG = iIn + Q.nghost;
-                int jG = jIn + Q.nghost;
-                int kG = kIn + Q.nghost;
-                int c = Q.index(iG, jG, kG);
-
-                double r = Q.rho[c];
-                if (r < 1e-14) {
-                    divU[c] = 0;
-                    continue;
-                }
-
-                double u = Q.rhou[c] / r, v = Q.rhov[c] / r, w = Q.rhow[c] / r;
-
-                // neighbors => iG-1, iG+1, etc. guaranteed valid by ghost cells
-                double rL = Q.rho[Q.index(iG - 1, jG, kG)];
-                double rR = Q.rho[Q.index(iG + 1, jG, kG)];
-                double uL =
-                    (rL > 1e-14) ? (Q.rhou[Q.index(iG - 1, jG, kG)] / rL) : 0.0;
-                double uR =
-                    (rR > 1e-14) ? (Q.rhou[Q.index(iG + 1, jG, kG)] / rR) : 0.0;
-                double dudx = (uR - uL) / (2. * dx);
-
-                double rD = Q.rho[Q.index(iG, jG - 1, kG)];
-                double rU = Q.rho[Q.index(iG, jG + 1, kG)];
-                double vD =
-                    (rD > 1e-14) ? (Q.rhov[Q.index(iG, jG - 1, kG)] / rD) : 0.0;
-                double vU =
-                    (rU > 1e-14) ? (Q.rhov[Q.index(iG, jG + 1, kG)] / rU) : 0.0;
-                double dvdy = (vU - vD) / (2. * dy);
-
-                double rB = Q.rho[Q.index(iG, jG, kG - 1)];
-                double rF = Q.rho[Q.index(iG, jG, kG + 1)];
-                double wB =
-                    (rB > 1e-14) ? (Q.rhow[Q.index(iG, jG, kG - 1)] / rB) : 0.0;
-                double wF =
-                    (rF > 1e-14) ? (Q.rhow[Q.index(iG, jG, kG + 1)] / rF) : 0.0;
-                double dwdz = (wF - wB) / (2. * dz);
-
-                divU[c] = dudx + dvdy + dwdz;
-            }
-        }
-    }
-
-    // 2) Laplacian of each field
-    auto laplacian = [&](const std::vector<double> &arr,
-                         std::vector<double> &lap) {
-        for (int kIn = 0; kIn < nz; kIn++) {
-            for (int jIn = 0; jIn < ny; jIn++) {
-                for (int iIn = 0; iIn < nx; iIn++) {
-                    int iG = iIn + Q.nghost, jG = jIn + Q.nghost,
-                        kG = kIn + Q.nghost;
-                    int c = Q.index(iG, jG, kG);
-
-                    double valC = arr[c];
-                    double valL = arr[Q.index(iG - 1, jG, kG)];
-                    double valR = arr[Q.index(iG + 1, jG, kG)];
-                    double d2x = (valR - 2. * valC + valL) / (dx * dx);
-
-                    double valD = arr[Q.index(iG, jG - 1, kG)];
-                    double valU = arr[Q.index(iG, jG + 1, kG)];
-                    double d2y = (valU - 2. * valC + valD) / (dy * dy);
-
-                    double valB = arr[Q.index(iG, jG, kG - 1)];
-                    double valF = arr[Q.index(iG, jG, kG + 1)];
-                    double d2z = (valF - 2. * valC + valB) / (dz * dz);
-
-                    lap[c] = d2x + d2y + d2z;
-                }
-            }
-        }
-    };
-
-    size_t Ntotal = NxG * NyG * NzG;
-    std::vector<double> lapRho(Ntotal, 0.), lapRhou(Ntotal, 0.),
-        lapRhov(Ntotal, 0.);
-    std::vector<double> lapRhow(Ntotal, 0.), lapE(Ntotal, 0.);
-    laplacian(Q.rho, lapRho);
-    laplacian(Q.rhou, lapRhou);
-    laplacian(Q.rhov, lapRhov);
-    laplacian(Q.rhow, lapRhow);
-    laplacian(Q.E, lapE);
-
-    // 3) add viscosity if divU<0
-    for (int kIn = 0; kIn < nz; kIn++) {
-        for (int jIn = 0; jIn < ny; jIn++) {
-            for (int iIn = 0; iIn < nx; iIn++) {
-                int iG = iIn + Q.nghost, jG = jIn + Q.nghost,
-                    kG = kIn + Q.nghost;
-                int c = Q.index(iG, jG, kG);
-
-                double q = (divU[c] < 0.0) ? -divU[c] : 0.0;
-                double nu = alpha * h * h * q;
-
-                LQ.rho[c] += nu * lapRho[c];
-                LQ.rhou[c] += nu * lapRhou[c];
-                LQ.rhov[c] += nu * lapRhov[c];
-                LQ.rhow[c] += nu * lapRhow[c];
-                LQ.E[c] += nu * lapE[c];
-            }
-        }
-    }
-
-    agoge::PerformanceMonitor::instance().stopTimer("applyArtificialVisc");
 }
 
 //=====================================================
@@ -273,8 +147,8 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 // left cell is iF-1, right cell is iF, in interior coords
                 // if iF=0 => left cell is iF-1= -1 => that's in ghost region
                 // but Q has ghost cells => so let iL= iF-1.
-                
-                int cL = Q.interiorIndex(i-1, j, k);
+
+                int cL = Q.interiorIndex(i - 1, j, k);
                 int cR = Q.interiorIndex(i, j, k);
 
                 // slope-limited states
@@ -282,7 +156,7 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
                 auto UR = getU(cR);
 
                 // we can do minmod slope from neighbors cL-1, cL+1, etc., or do
-                // simpler approach for brevity, let's do 1st-order 
+                // simpler approach for brevity, let's do 1st-order
 
                 double aL = waveSpeed(UL[0], UL[1], UL[2], UL[3], UL[4]);
                 double aR = waveSpeed(UR[0], UR[1], UR[2], UR[3], UR[4]);
@@ -374,12 +248,9 @@ void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
 //=====================================================
 void runRK2(Field3D &Q, double dt) {
     // create Qtemp, LQ etc. sized with same ghost
-    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-                  Q.nghost);
-    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-               Q.nghost);
-    Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.dx, Q.dy, Q.dz,
-                   Q.nghost);
+    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
+    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
+    Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
 
     // copy BC flags
     Qtemp.bc_xmin = Q.bc_xmin;
