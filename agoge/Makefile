@@ -34,7 +34,7 @@ endif
 CXX_STD ?= -std=c++2a
 
 # Compiler Flags
-CXXFLAGS := $(CXX_STD) -O3 -Wall -Wextra -MMD -MP 
+CXXFLAGS := $(CXX_STD) -O3 -Wall -Wextra -MMD -MP -g 
 
 # HDF5 Flags using pkg-config
 HDF5_CFLAGS := $(shell pkg-config --cflags hdf5_cpp 2>/dev/null)

@@ -26,7 +26,7 @@ constexpr double gamma_gas = 1.4;
  * Set to 1.0 by default for convenience in dimensionless or code unit systems.
  * Adjust to a physical value if using CGS or SI units.
  */
-constexpr double G = 1.0;
+constexpr double G = 6.67e-8;
 
 /**
  * @brief Toggle for enabling or disabling self-gravity.

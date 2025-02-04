@@ -27,16 +27,15 @@ void SodShockTube::initialize(Field3D &Q, const ParameterSystem &params) {
     double rightPressure = params.getDouble(prefix + "right_pressure");
     double u0 = params.getDouble(prefix + "u0");
     double gamma = params.getDouble(prefix + "gamma");
+    double midpoint = Q.bbox.xmin + 0.5 * (Q.bbox.xmax - Q.bbox.xmin);
 
     for (int k = 0; k < Q.Nz; ++k) {
         for (int j = 0; j < Q.Ny; ++j) {
             for (int i = 0; i < Q.Nx; ++i) {
                 int idx = Q.interiorIndex(i, j, k);
 
-                // Determine left or right side based on position
-                double x = (i + 0.5) * Q.dx;
-                double midpoint = 0.5 * Q.Nx * Q.dx;
-                if (x < midpoint) {
+                // Determine left or right side based on position                
+                if (Q.xCenter(i) < midpoint) {
                     Q.rho[idx] = leftDensity;
                     Q.rhou[idx] = leftDensity * u0;
                     Q.rhov[idx] = 0.0;
@@ -51,7 +50,6 @@ void SodShockTube::initialize(Field3D &Q, const ParameterSystem &params) {
                     Q.E[idx] = rightPressure / (gamma - 1.0) +
                                0.5 * rightDensity * u0 * u0;
                 }
-
                 // No gravity
                 Q.phi[idx] = 0.0;
             }

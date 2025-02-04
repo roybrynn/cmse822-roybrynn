@@ -6,6 +6,13 @@
 
 namespace agoge {
 
+// Define a BoundingBox structure
+struct BoundingBox {
+    double xmin, xmax;
+    double ymin, ymax;
+    double zmin, zmax;
+};
+
 /**
  * @class Field3D
  * @brief Data structure storing 3D fields with ghost zones for boundary
@@ -19,8 +26,11 @@ class Field3D {
      * @param dx,dy,dz cell sizes
      * @param nghost number of ghost cells on each side
      */
-    Field3D(int nx, int ny, int nz, double dx, double dy, double dz,
-            int nghost = 0);
+    // Updated constructor with BoundingBox and default ghost value
+    Field3D(int nx, int ny, int nz, const BoundingBox &bbox, int nghost = 0);
+
+    // Accessor for BoundingBox
+    const BoundingBox& getBoundingBox() const { return bbox; }
 
     /**
      * @brief The total domain's interior size
@@ -41,6 +51,11 @@ class Field3D {
      * @brief Physical cell sizes
      */
     double dx, dy, dz;
+
+    /**
+     * @brief The bounding box for the field
+     */
+    BoundingBox bbox;
 
     /**
      * @brief The arrays: size NxGhost*NyGhost*NzGhost
@@ -81,6 +96,38 @@ class Field3D {
     config::BoundaryCondition bc_xmin, bc_xmax;
     config::BoundaryCondition bc_ymin, bc_ymax;
     config::BoundaryCondition bc_zmin, bc_zmax;
+
+    /**
+     * @brief Return x-center coordinate for interior cell iIn in [0..Nx-1].
+     *        We assume origin=0 for interior cell i=0 is at left edge
+     *        plus ghost offset => so the cell-center is (iIn + 0.5)*dx,
+     *        plus possibly an offset for the ghost region: iTotal= iIn + nghost
+     */
+    double xCenter(int iIn) const;
+
+    /**
+     * @brief xLeftEdge for the interior cell iIn
+     */
+    double xLeftEdge(int iIn) const;
+
+    /**
+     * @brief xRightEdge for the interior cell iIn
+     */
+    double xRightEdge(int iIn) const;
+
+    /**
+     * @brief Similarly for y
+     */
+    double yCenter(int jIn) const;
+    double yLeftEdge(int jIn) const;
+    double yRightEdge(int jIn) const;
+
+    /**
+     * @brief Similarly for z
+     */
+    double zCenter(int kIn) const;
+    double zLeftEdge(int kIn) const;
+    double zRightEdge(int kIn) const;
 };
 
 }  // namespace agoge

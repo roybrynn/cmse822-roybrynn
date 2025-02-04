@@ -2,7 +2,7 @@
 
 ## Reading
 
-- **Chapters 1, 6, and 15 of [High-Performance Scientific Computing](../assets/EijkhoutIntroToHPC2020.pdf)**:
+- **Chapters 1, 6, and 15 of [High-Performance Scientific Computing](https://cmse822.github.io/assets/EijkhoutIntroToHPC2020.pdf)**:
 
   - Focus on understanding the key principles outlined in each chapter. Take notes on:
     - Chapter 1: Basics of single-processor computing, including von Neumann architecture and memory hierarchies.
@@ -19,7 +19,8 @@
 
 ## Exercises
 
-Complete the following exercises from of [High-Performance Scientific Computing](../assets/EijkhoutIntroToHPC2020.pdf): You will be expected to present your solutions in-class. For each exercise, include detailed explanations and step-by-step solutions. Code solutions should be well-commented and functional. Graphs or tables should be neatly labeled.
+
+Complete the following exercises from of [High-Performance Scientific Computing](https://cmse822.github.io/assets/EijkhoutIntroToHPC2020.pdf): You will be expected to present your solutions in-class. For each exercise, include detailed explanations and step-by-step solutions. Code solutions should be well-commented and functional. Graphs or tables should be neatly labeled.
 
 1. **Exercises 1.1, 1.2, and 1.3**
 

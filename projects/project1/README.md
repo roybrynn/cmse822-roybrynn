@@ -8,11 +8,11 @@ In this Quest, you will join the legendary Profilers' Guild, tasked with guiding
 
 First thing upon accepting this assignment, specify who will be the _Naviagator_, _Lorekeeper_, and the group _Bard_ for this project. The Navigator will be responsible for setting group meetings and ensuring that all aspects of the project are addressed equitably amongst the group. The Lorekeeper will be responsible for ensuring that the project report is prepared according to the requirements and that all prompts are explicitly and clearly addressed. The Bard will be responsible for giving a short (10 minute max) presentation in class on the group's work upon completion of the project.
 
-**Project Coordinator (PC):** 
+**Navigator:** 
 
-**Documentation Lead (DL):** 
+**Lorekeeper:** 
 
-**Group Spokesperson (GS):**  
+**Bard:**  
 
 ## Learning Objectives
 
@@ -46,7 +46,7 @@ Included a table in your project report listing the arithmetic intensities for t
 
 ## Part 1: The Roofline Model 
 
-In this part, you will explore the roofline model for analyzing the interplay between arithmetic intensity and memory bandwidth for architectures with complex memory hierarchies. Complete the following exercises on the _SAME_ compute architectures that you used in Part 1 above. 
+In this part, you will explore the roofline model for analyzing the interplay between arithmetic intensity and memory bandwidth for architectures with complex memory hierarchies. 
 
 1. Reference the materials on the Roofline Performance model at <https://crd.lbl.gov/divisions/amcr/computer-science-amcr/par/research/roofline/>. In particular, look through ["Roofline: An Insightful Visual Performance Model for Floating-Point Programs and Multicore Architectures"](https://www2.eecs.berkeley.edu/Pubs/TechRpts/2008/EECS-2008-134.pdf) and the slides at <https://crd.lbl.gov/assets/pubs_presos/parlab08-roofline-talk.pdf>.
 2. Clone the CS Roofline Toolkit, `git clone https://bitbucket.org/berkeleylab/cs-roofline-toolkit.git`. Modify one of the config files in `Empirical_Roofline_Tool-1.1.0/Config` as necessary for the machine you are using.

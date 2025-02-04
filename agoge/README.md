@@ -1,37 +1,40 @@
 # Agoge
 
-**Agoge** is a pedagogical 3D **compressible Euler** solver written in C++. It is designed primarily for CMSE 822 (or similar advanced computational physics/engineering courses) to **demonstrate**:
+**Agoge** is a pedagogical 3D **compressible Euler** solver written in C++. It was developed as a teaching and research tool for advanced computational physics and engineering courses (e.g., CMSE 822) to demonstrate:
 
-- High-performance computing (HPC) concepts  
-- Numerical methods for hyperbolic PDEs  
-- Modular code design and build practices using CMake  
-- Extensions to handle **self-gravity** and possible **GPU** offloading
+- High-performance computing (HPC) concepts
+- Numerical methods for hyperbolic PDEs
+- Modern software engineering practices using C++ and CMake
+- Techniques for modular code design and extensibility
+- Integration of self-gravity via an FFT-based Poisson solver
+- Potential for GPU offloading and other advanced parallelization strategies
 
-The name “agoge” reflects the code’s purpose as a **training ground** for learning **computational methods** and **software engineering** best practices in scientific computing.
+The name “agoge”—inspired by the rigorous training system of ancient Sparta—reflects its role as a challenging training ground for mastering computational methods and software development in scientific computing.
+
+---
 
 ## Key Features
 
-1. **3D Compressible Euler Equations**  
-   - Second-order finite-difference (or optionally higher-order)  
-   - Two-stage Runge-Kutta time stepping  
-   - Periodic or simple boundary conditions  
+1. **3D Compressible Euler Equations**
+   - Second-order finite-difference (with minmod limiters) or higher-order schemes available.
+   - Two-stage Runge-Kutta time stepping.
+   - Supports periodic and simple boundary conditions.
 
-2. **Self-Gravity (Optional)**  
-   - FFT-based Poisson solver for \(\nabla^2 \phi = 4\pi G\,\rho\)  
-   - Adds gravitational source terms to momentum & energy equations  
+2. **Self-Gravity (Optional)**
+   - FFT-based Poisson solver to solve \(\nabla^2 \phi = 4\pi G\,\rho\)
+   - Adds gravitational source terms (body force in momentum and work in energy equations) using spatially varying potential (\(\phi\)).
 
-3. **Modular Code Structure**  
-   - Separation of data structures (`Field3D`), solver routines (`EulerSolver`), and I/O (`HDF5_IO`)  
-   - CMake-based build system for easy compilation and extensibility  
+3. **Modular Code Structure**
+   - Clear separation of data structures (`Field3D`), solver routines (`EulerSolver`), gravity routines (`GravitySolver`), and I/O (`HDF5_IO`).
+   - Build system based on CMake for cross-platform compilation and easy extensibility.
 
-4. **HDF5 I/O**  
-   - Example of writing out final states (density, momentum, energy, etc.) to HDF5  
-   - Can be viewed with typical HPC visualization tools (yt, ParaView, etc.)  
+4. **HDF5 I/O**
+   - Write final solution fields (density, momentum components, energy, gravitational potential, etc.) to HDF5 files.
+   - Output is compatible with popular visualization tools (e.g., yt, ParaView).
 
-5. **Room for Extensions**  
-   - GPU offloading (e.g., with CUDA, AMReX, or OpenMP target)  
-   - Additional physics (viscosity, MHD, multi-species, etc.)  
-   - More sophisticated boundary conditions, limiters, Riemann solvers  
+5. **Extensibility**
+   - Designed to be a test bed for adding additional physics (e.g., viscosity, magnetic fields, multi-species flows) and numerical methods (e.g., higher-order or WENO schemes).   
+   - Performance monitoring via a custom `PerformanceMonitor` module.
 
 ---
 
@@ -79,106 +82,133 @@ agoge/
 ├── projects/
 │   └── project1/
 │       └── README.md
-├── CMakeLists.txt
+├── .github/
+│   └── workflows/
+│       └── update_students.yml   # (For GitHub Classroom automation)
 ├── Makefile
 ├── README.md
 ├── design.md
 └── instructions.md
 ```
 
-- **`include/`**: Public headers declaring data structures and solver interfaces.  
-- **`src/`**: Implementation files, including the main driver (`main.cpp`).  
-- **`tests/`**: Unit and integration tests.  
-- **`CMakeLists.txt`**: Entry point for the build system.
+- **`include/`**: Public header files for core components.
+- **`src/`**: Implementation of the solver, including `main.cpp`.
+- **`problems/`**: Problem definitions (e.g., SodShockTube, GravityCollapse) and a registry for selecting the active problem.
+- **`tests/`**: Unit and integration tests.
+- **`.github/workflows/`**: GitHub Actions workflow files for automated tasks (e.g., updating student repos in Classroom).
+- **`viz/`**: Visualization scripts and example notebooks.
 
 ---
 
-## Building Agoge
+## Building Agoge on HPCC at MSU
 
-You’ll need a **C++17**-compatible compiler, **CMake 3.15+**, and optionally **HDF5** (if you want HDF5 I/O) and **FFTW** (if you want self-gravity).
+Agoge is designed to run on high-performance computing clusters. At MSU’s HPCC, follow these steps:
 
-1. **Clone** this repository:
+1. **Access HPCC:**
+   - Log in to HPCC using your preferred method (SSH, terminal, etc.).
+   - Load the necessary modules (e.g., GCC, HDF5). For example:
+     ```bash
+     module purge
+     module load HDF5
+     ```
+
+2. **Clone the Repository:**
    ```bash
-   git clone https://github.com/username/agoge.git
+   git clone https://github.com/your-username/agoge.git
    cd agoge
    ```
-2. **Configure** and **build**:
-   ```bash
-   mkdir build && cd build
-   cmake .. -DCMAKE_BUILD_TYPE=Release
-   make
-   ```
-3. **Optional**: If using HDF5 or FFTW, ensure they are installed and visible to CMake, e.g.:
-   ```bash
-   cmake .. -DHDF5_ROOT=/path/to/hdf5 -DFFTW3_ROOT=/path/to/fftw
-   make
-   ```
-4. **Tests** (if enabled):
-   ```bash
-   ctest --output-on-failure
-   ```
 
-This should produce an executable, for instance:  
+3. **Configure and Build:**
+   From the top-level `agoge` directory, you may simply run `make` to build the code:
+   
+4. **Generate the Executable:**
+   - The build process should produce an executable (e.g., `agoge_run`).
+
+---
+
+## Running Agoge on HPCC
+
+Once built, you can run Agoge on HPCC either interactively or as a batch job.
+
+### **Interactive Run:**
+
+```bash
+./agoge_run problems/SodShockTube.yaml
 ```
-build/agoge_main
+
+### **Batch Job Submission Example (SLURM):**
+
+Create a job script (e.g., `job.sh`):
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=agoge_run
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=16
+#SBATCH --time=00:30:00
+#SBATCH --partition=standard
+
+# Load necessary modules
+module purge
+module load HDF5
+
+# Navigate to the agoge directory
+cd $SLURM_SUBMIT_DIR
+
+# Run the executable with the desired problem configuration
+./agoge_run ../problems/SodShockTube.yaml
+```
+
+Submit the job:
+
+```bash
+sbatch job.sh
 ```
 
 ---
 
-## Running Agoge
+## Running Self-Gravity & Advanced Features
 
-By default, `agoge_main` will:
+- **Self-Gravity:**
+  - Enable self-gravity simply by specifying a problem that uses the GravitySolver.
+  - The solver uses an FFT-based Poisson solver (see `GravitySolver.cpp`) to compute the gravitational potential.  
 
-1. **Initialize** a 3D domain (e.g., \(64^3\) or as specified in `main.cpp` or a config file).  
-2. **Set** initial conditions (a uniform field with small perturbations, or a user-defined profile).  
-3. **Time-step** the compressible Euler equations with or without self-gravity.  
-4. **Write** final output to `agoge_final.h5` (if HDF5 is enabled).
-
-Example usage:
-```bash
-./agoge_main
-```
-Depending on how the code is written, you might pass arguments like the grid size, time steps, or use a parameter file. If you’re using the **Poisson solver** for self-gravity, ensure it’s enabled during compilation (e.g., `-DAGOGE_USE_GRAVITY=ON` in CMake).
+- **GPU Offloading (Future Work):**
+  - The code is structured to allow extensions such as GPU offloading via CUDA or OpenMP target directives.
+  - This will require additional configuration and might involve separate compilation flags and modules on HPCC.
 
 ---
 
 ## Output & Visualization
 
-- The solver writes fields (density, momentum components, energy, potential, etc.) to **HDF5** files.  
-- You can visualize them with **yt**, **ParaView**, or any HDF5-compatible post-processing tool.  
-- For instance, with Python and yt:
-  ```python
-  import yt
-  ds = yt.load("agoge_final.h5")
-  slc = yt.SlicePlot(ds, "z", "density")
-  slc.save()
-  ```
-
----
-
-## Extending & Customizing
-
-- **Higher-Order Fluxes**: Replace or augment the finite-difference flux with more advanced Riemann solvers, limiters, or WENO schemes.  
-- **Boundary Conditions**: Add outflow, reflecting, or custom BC logic in `EulerSolver.cpp`.  
-- **GPU Offload**: Use frameworks like **AMReX**, CUDA, or OpenMP target offload. Annotate the solver routines to run on devices, and manage data.  
-- **Additional Physics**: Viscous terms, magnetic fields, multi-species, or advanced EOS can be added by extending the data structures and PDE solvers.
+- **Output Files:**
+  - Agoge writes simulation data to HDF5 files (e.g., `agoge_final.h5`).
+- **Visualization Tools:**
+  - Use Python (with yt or matplotlib), ParaView, or similar HDF5-compatible tools.
+  - See the example Jupyter notebook in the `viz` directory.
 
 ---
 
 ## Contributing
 
-Contributions, bug reports, and feature requests are welcome! Please submit a pull request or open an issue. This project is used in an educational setting (e.g., **CMSE 822**), so it’s a great test bed for learning HPC and scientific software engineering best practices.
+Contributions, bug reports, and feature requests are welcome. Please submit pull requests or open issues on GitHub. This project is used in CMSE 822 as a training ground for HPC and scientific software development.
 
 ---
 
 ## License
 
-[MIT License](LICENSE) — Agoge is free for personal, educational, and commercial use. If you use or modify Agoge for your own research or teaching, a citation or link back to this repository is greatly appreciated.
+Agoge is released under the [MIT License](LICENSE). You are free to use, modify, and distribute Agoge for personal, educational, and commercial purposes. Please cite or link back to the repository if you use it in your research or teaching.
 
 ---
 
 ## Acknowledgments
 
-- **CMSE 822** at [Your Institution] for providing the impetus to develop a pedagogical compressible flow code.  
-- [FFTW](http://fftw.org/) and [HDF5](https://portal.hdfgroup.org/) for core HPC libraries.  
-- Everyone in the HPC and astrophysics communities whose open-source contributions inspired Agoge’s structure.
+- **CMSE 822 at MSU:** For inspiring the development of Agoge as an educational tool in parallel computing.
+- **The HPC Community:** For contributions and best practices that have informed Agoge’s design.
+- **Libraries and Tools:** Special thanks to the developers of HDF5, FFTW, and the GitHub Actions community.
+
+---
+
+## Contact
+
+For questions or clarifications, please contact the course instructor or open an issue on the repository.

@@ -15,7 +15,6 @@ namespace problems {
 class Problem {
    public:
     virtual ~Problem() = default;
-
     /**
      * @brief Initialize the Field3D with problem-specific initial conditions.
      *

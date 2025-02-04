@@ -1,8 +1,8 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <algorithm>
 
 // Agoge core headers
 #include "Config.hpp"
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     agoge::PerformanceMonitor::instance().startTimer("main");
 
     // We might expect 1 argument:
-    // 1) YAML file for parameters including problem name    
+    // 1) YAML file for parameters including problem name
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " [yaml_file]\n"
                   << "Example: ./agoge_run Sod.yaml\n";
@@ -83,8 +83,9 @@ int main(int argc, char** argv) {
     // Create a ParameterSystem with built-in defaults
     agoge::ParameterSystem params;
 
-    // Register global parameters are already set in ParameterSystem's constructor
-    // Register problem-specific parameters will be handled after problem creation
+    // Register global parameters are already set in ParameterSystem's
+    // constructor Register problem-specific parameters will be handled after
+    // problem creation
 
     // Read global parameters first
     if (!params.readYAML(argv[1])) {
@@ -100,7 +101,8 @@ int main(int argc, char** argv) {
     }
 
     // Create the Problem instance
-    std::unique_ptr<agoge::problems::Problem> problem = agoge::problems::createProblem(problem_name);
+    std::unique_ptr<agoge::problems::Problem> problem =
+        agoge::problems::createProblem(problem_name);
     if (!problem) {
         std::cerr << "Unknown problem name: " << problem_name << "\n";
         return 1;
@@ -117,7 +119,7 @@ int main(int argc, char** argv) {
 
     // set the boundary conditions
     // agoge::BoundaryManager::initBCsFromParameters(params);
-    
+
     std::string gravMethod = params.getString("GravityCollapse.grav_method");
     agoge::gravity::GravityMethod method =
         agoge::gravity::GravityMethod::NAIVE_DFT;
@@ -125,32 +127,29 @@ int main(int argc, char** argv) {
         method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
     }
 
+    bool doEulerUpdate = params.getBool("do_euler_update");
+
     // 2) Get Nx, Ny, Nz, domain, etc.
     int Nx = params.getInt("nx");
     int Ny = params.getInt("ny");
     int Nz = params.getInt("nz");
 
-    auto domainVec = params.getDoubleList("domain");
-    if (domainVec.size() < 3) {
-        std::cerr
-            << "[main] WARNING: domain list < 3 elements, fallback [1,1,1].\n";
-        domainVec = {1.0, 1.0, 1.0};
-    }
-    double Lx = domainVec[0];
-    double Ly = domainVec[1];
-    double Lz = domainVec[2];
+    double xmin = params.getDouble("xmin");
+    double xmax = params.getDouble("xmax");
+    double ymin = params.getDouble("ymin");
+    double ymax = params.getDouble("ymax");
+    double zmin = params.getDouble("zmin");
+    double zmax = params.getDouble("zmax");
 
-    double dx = Lx / Nx;
-    double dy = Ly / Ny;
-    double dz = Lz / Nz;
+    agoge::BoundingBox bbox = {xmin, xmax, ymin, ymax, zmin, zmax};
 
     // 3) Initialize with the chosen problem
-    agoge::Field3D Q(Nx, Ny, Nz, dx, dy, dz, 1);
+    agoge::Field3D Q(Nx, Ny, Nz, bbox, 1);
     problem->initialize(Q, params);
 
     bool gravityEnabled = params.getBool("use_gravity");
     std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED")
-              << "\n";
+              << ", G: " << agoge::config::G << "\n";
 
     // 4) Set up boundary conditions (once), reading from param
     Q.bc_xmin = params.getBoundaryCondition("bc_xmin");
@@ -171,7 +170,8 @@ int main(int argc, char** argv) {
     if (initMaxSpeed < 1e-14) {
         initMaxSpeed = 1e-14;  // avoid divide by zero
     }
-    double Lmax = std::max({Lx, Ly, Lz});
+    double Lmax = std::max(
+        {bbox.xmax - bbox.xmin, bbox.ymax - bbox.ymin, bbox.zmax - bbox.zmin});
     double crossingTime = Lmax / initMaxSpeed;
     double totalTime = crossingTime * crossingCount;
 
@@ -209,9 +209,11 @@ int main(int argc, char** argv) {
         }
 
         // run one RK2 step
-        agoge::PerformanceMonitor::instance().startTimer("EulerSolve");
-        agoge::euler::runRK2(Q, dt);
-        agoge::PerformanceMonitor::instance().stopTimer("EulerSolve");
+        if (doEulerUpdate) {
+            agoge::PerformanceMonitor::instance().startTimer("EulerSolve");
+            agoge::euler::runRK2(Q, dt);
+            agoge::PerformanceMonitor::instance().stopTimer("EulerSolve");
+        }
         currentTime += dt;
         step++;
 
