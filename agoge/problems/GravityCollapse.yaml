@@ -8,12 +8,12 @@ GravityCollapse.grav_method: "cooley_tukey"
 config.G: 6.67e-8
 nx: 128
 ny: 128
-nz: 128
+nz: 128                                              
 # cfl, sound_crossings, etc. 
 cfl: 0.5
-use_gravity: true
-sound_crossings: 1.0
-# sound_crossings: 0.1
+sound_crossings: 0.1
+use_gravity: false
+do_euler_update: true
 
 xmin: 0.0
 xmax: 2.0e11

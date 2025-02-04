@@ -127,6 +127,8 @@ int main(int argc, char** argv) {
         method = agoge::gravity::GravityMethod::COOLEY_TUKEY;
     }
 
+    bool doEulerUpdate = params.getBool("do_euler_update");
+
     // 2) Get Nx, Ny, Nz, domain, etc.
     int Nx = params.getInt("nx");
     int Ny = params.getInt("ny");
@@ -146,8 +148,8 @@ int main(int argc, char** argv) {
     problem->initialize(Q, params);
 
     bool gravityEnabled = params.getBool("use_gravity");
-    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED") << ", G: " << agoge::config::G
-              << "\n";
+    std::cout << "Gravity is " << (gravityEnabled ? "ENABLED" : "DISABLED")
+              << ", G: " << agoge::config::G << "\n";
 
     // 4) Set up boundary conditions (once), reading from param
     Q.bc_xmin = params.getBoundaryCondition("bc_xmin");
@@ -207,9 +209,11 @@ int main(int argc, char** argv) {
         }
 
         // run one RK2 step
-        agoge::PerformanceMonitor::instance().startTimer("EulerSolve");
-        agoge::euler::runRK2(Q, dt);
-        agoge::PerformanceMonitor::instance().stopTimer("EulerSolve");
+        if (doEulerUpdate) {
+            agoge::PerformanceMonitor::instance().startTimer("EulerSolve");
+            agoge::euler::runRK2(Q, dt);
+            agoge::PerformanceMonitor::instance().stopTimer("EulerSolve");
+        }
         currentTime += dt;
         step++;
 

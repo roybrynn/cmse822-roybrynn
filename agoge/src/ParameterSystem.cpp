@@ -34,6 +34,10 @@ void ParameterSystem::setDefaults() {
     defaults_["bc_ymax"] = "periodic";
     defaults_["bc_zmin"] = "periodic";
     defaults_["bc_zmax"] = "periodic";
+
+    // new default
+    defaults_["do_euler_update"] =
+        "true";  // or "true" if you want skip by default
 }
 
 void ParameterSystem::addDefault(const std::string &key,
