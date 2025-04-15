@@ -17,6 +17,7 @@ int main() {
 
     // Add two vectors using a simple loop and measure time.
     auto start = std::chrono::high_resolution_clock::now();
+    #pragma omp parallel loop
     for (int i = 0; i < N; ++i) {
         c[i] = a[i] + b[i];
     }
