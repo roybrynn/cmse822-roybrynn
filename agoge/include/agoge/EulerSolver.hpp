@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Field3d.hpp"
+#include <limits>
 
 /**
  * @file EulerSolver.hpp
@@ -8,9 +9,30 @@
  *        performing time integration using a shock-capturing finite difference
  * method.
  */
+#ifndef AGOGE_NTILE
+#define AGOGE_NTILE 16
+#endif
 
 namespace agoge {
 namespace euler {
+
+constexpr int Ntile = AGOGE_NTILE;                       // 1D tile size
+const int Nghost = config::Ng;              // Number of ghost cells
+const int NtileGhost = Ntile + 2 * Nghost;  // 1D tile size with ghost cells
+const int tileSize = NtileGhost * NtileGhost * NtileGhost;  // 3D tile size
+constexpr int Nflux = 5;  // Number of fluxes in tile excluding phi
+
+enum var {
+    rho = 0,
+    rhou = 1,
+    rhov = 2,
+    rhow = 3,
+    E = 4
+};
+
+constexpr double huge_val = std::numeric_limits<double>::max();
+const std::array<double, Nflux> floor = {1.0e-14, -huge_val, -huge_val,
+                                         -huge_val, 1.0e-10};
 
 /**
  * @brief Computes the 3D flux divergence term \(-\nabla \cdot F(Q)\) for the
@@ -26,8 +48,22 @@ namespace euler {
  *                       (phi). If non-null, source terms for gravity are added
  *                       to the momentum and energy equations.
  */
-void computeL(const Field3D &Q, Field3D &LQ,
-              const Field3D *gravField = nullptr);
+void computeL(const Field3D &Q, Field3D &LQ);
+
+/// @brief  Computes the 3D flux divergence term \(-\nabla \cdot F(Q)\) for the
+/// @param tileQ 
+/// @param tileL  
+/// @param xExtent 
+/// @param yExtent 
+/// @param zExtent 
+/// @param dx_inv 
+/// @param dy_inv 
+/// @param dz_inv 
+/// @param tilePhi 
+void computeLtile(std::vector<double> &tileQ,
+                  std::vector<double> &tileL, int xExtent,
+                  int yExtent, int zExtent, double dx_inv, double dy_inv,
+                  double dz_inv, std::vector<double> &tilePhi);
 
 /**
  * @brief Performs a two-stage (midpoint) Runge-Kutta time integration on the

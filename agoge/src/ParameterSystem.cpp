@@ -4,15 +4,23 @@
 #include <cctype>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 
 namespace agoge {
 
-ParameterSystem::ParameterSystem() { setDefaults(); }
+// Constructor initializes the internal defaults.
+ParameterSystem::ParameterSystem() {
+    // Calls helper to populate defaults map with typical simulation parameters.
+    setDefaults();
+}
 
+// Sets baseline simulation parameters for domain sizes, CFL, boundary conditions, etc.
 void ParameterSystem::setDefaults() {
     defaults_["nx"] = "64";
     defaults_["ny"] = "64";
     defaults_["nz"] = "64";
+
+    defaults_["nghost"] = "1";
 
     defaults_["cfl"] = "0.5";
     defaults_["use_gravity"] = "false";
@@ -23,10 +31,11 @@ void ParameterSystem::setDefaults() {
     defaults_["zmin"] = "0.0";
     defaults_["zmax"] = "1.0";
     defaults_["sound_crossings"] = "1.0";
+    defaults_["dt_init"] = "0.01";
+    defaults_["t_max"] = "1.0";
 
     defaults_["problem_name"] = "\"sod\"";
 
-    // NEW default boundary conditions
     // possible values: "periodic", "outflow"
     defaults_["bc_xmin"] = "periodic";
     defaults_["bc_xmax"] = "periodic";
@@ -38,33 +47,92 @@ void ParameterSystem::setDefaults() {
     // new default
     defaults_["do_euler_update"] =
         "true";  // or "true" if you want skip by default
+    
+    // Turn off IO         
+    defaults_["do_io"] = "true";
+
+    // new default for wall clock time: 14400 seconds = 4 hours
+    defaults_["max_wallclock_time"] = "14400";
+
+    // number of steps between screen output
+    defaults_["screen_out_interval"] = "2";
+
+    // output directory
+    defaults_["output_dir"] = "\"output\"";
 }
 
+// Adds or overrides a default parameter with a given key-value pair.
 void ParameterSystem::addDefault(const std::string &key,
                                  const std::string &value) {
     defaults_[key] = value;
 }
 
-bool ParameterSystem::readYAML(const std::string &filename) {
-    bool ok = parser_.parseFile(filename);
-    if (!ok) {
-        std::cerr << "[ParameterSystem] Could not parse YAML: " << filename
-                  << "\n";
-    }
-    return ok;
+// Check if parameter exists
+bool ParameterSystem::hasParameter(const std::string &key) const {
+    return !getRaw(key).empty();
 }
 
-std::string ParameterSystem::getRaw(const std::string &key) const {
-    if (parser_.hasKey(key)) {
-        return parser_.getString(key);
+// Parse a YAML file and populate yamlData_ map
+bool ParameterSystem::readYAML(const std::string &filename) {
+    std::ifstream fin(filename);
+    if (!fin.is_open()) {
+        std::cerr << "[ParameterSystem] Could not open YAML file: " << filename << "\n";
+        return false;
     }
-    auto it = defaults_.find(key);
+
+    std::string line;
+    while (std::getline(fin, line)) {
+        // Trim whitespace
+        line = trim(line);
+        // Skip empty or comment lines
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+
+        // Parse "key: value"
+        auto kv = parseLine(line);
+        if (!kv.first.empty()) {
+            yamlData_[kv.first] = kv.second;
+        }
+    }
+
+    return true;
+}
+
+// Parse a line of the format "key: value"
+std::pair<std::string, std::string> ParameterSystem::parseLine(const std::string &line) const {
+    // Find first colon
+    auto pos = line.find(':');
+    if (pos == std::string::npos) {
+        // Not a valid "key: val" line
+        return std::make_pair("", "");
+    }
+    // split
+    std::string key = line.substr(0, pos);
+    std::string val = line.substr(pos+1);
+
+    // trim
+    key = trim(key);
+    val = trim(val);
+
+    return std::make_pair(key, val);
+}
+
+// Returns the parameter value as a raw string; checks both parsed YAML and defaults.
+std::string ParameterSystem::getRaw(const std::string &key) const {
+    auto it = yamlData_.find(key);
+    if (it != yamlData_.end()) {
+        return it->second;
+    }
+    
+    it = defaults_.find(key);
     if (it != defaults_.end()) {
         return it->second;
     }
     return "";
 }
 
+// Converts the parameter string to an integer, with fallback behavior if missing.
 int ParameterSystem::getInt(const std::string &key) const {
     std::string raw = getRaw(key);
     if (raw.empty()) {
@@ -73,6 +141,7 @@ int ParameterSystem::getInt(const std::string &key) const {
     return std::stoi(raw);
 }
 
+// Converts the parameter string to a double, returning 0.0 if missing.
 double ParameterSystem::getDouble(const std::string &key) const {
     std::string raw = getRaw(key);
     if (raw.empty()) {
@@ -81,6 +150,7 @@ double ParameterSystem::getDouble(const std::string &key) const {
     return std::stod(raw);
 }
 
+// Interprets the parameter string as a boolean, accepting various true/false forms.
 bool ParameterSystem::getBool(const std::string &key) const {
     std::string raw = getRaw(key);
     if (raw.empty()) {
@@ -96,6 +166,7 @@ bool ParameterSystem::getBool(const std::string &key) const {
     return false;
 }
 
+// Strips surrounding quotes if present.
 std::string ParameterSystem::getString(const std::string &key) const {
     std::string raw = getRaw(key);
     if (!raw.empty() && raw.front() == '"' && raw.back() == '"' &&
@@ -105,6 +176,7 @@ std::string ParameterSystem::getString(const std::string &key) const {
     return raw;
 }
 
+// Parses a comma-separated list into a vector of doubles, ignoring parsing errors.
 std::vector<double> ParameterSystem::getDoubleList(
     const std::string &key) const {
     std::vector<double> result;
@@ -124,6 +196,7 @@ std::vector<double> ParameterSystem::getDoubleList(
     return result;
 }
 
+// Translates a boundary condition string (e.g., "periodic", "outflow") into an enum type.
 config::BoundaryCondition ParameterSystem::getBoundaryCondition(
     const std::string &key) const {
     // e.g. param might be "bc_xmin" -> "outflow"
@@ -140,6 +213,7 @@ config::BoundaryCondition ParameterSystem::getBoundaryCondition(
     return config::BoundaryCondition::PERIODIC;
 }
 
+// Helper to remove brackets from a list-string and split the values by commas.
 std::vector<std::string> ParameterSystem::parseList(
     const std::string &raw) const {
     std::vector<std::string> tokens;
@@ -158,6 +232,7 @@ std::vector<std::string> ParameterSystem::parseList(
     return tokens;
 }
 
+// Trims leading and trailing whitespace from a string.
 std::string ParameterSystem::trim(const std::string &str) const {
     if (str.empty()) return str;
     size_t start = 0;

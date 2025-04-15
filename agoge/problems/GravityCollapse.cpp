@@ -84,12 +84,15 @@ void GravityCollapse::initialize(Field3D &Q, const ParameterSystem &params) {
               << gravMethod << "\n";
 
     // Time the Poisson solve.
-    auto start = std::chrono::high_resolution_clock::now();
-    agoge::gravity::solvePoisson(Q, method);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "[GravityCollapse] Gravity solver completed in "
-              << elapsed.count() << " seconds.\n";
+    bool gravityEnabled = params.getBool("use_gravity");
+    if (!gravityEnabled) {
+        auto start = std::chrono::high_resolution_clock::now();
+        agoge::gravity::solvePoisson(Q, method);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "[GravityCollapse] Gravity solver completed in "
+                  << elapsed.count() << " seconds.\n";
+    }
 
     // Compute L₁ and L₂ error norms comparing Q.phi with the analytic
     // uniform-sphere potential.

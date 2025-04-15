@@ -1,0 +1,128 @@
+# === ERT Configuration File for MSU HPCC ===
+
+
+
+# Set where results should be stored (relative or absolute path).
+
+ERT_RESULTS intel18_Results_MPI_Enabled
+
+
+
+# Specify the theoretical peak values of the machine (if known).
+
+# This helps compare measured vs. theoretical performance.
+
+# ERT_SPEC_GBYTES_DRAM 200
+
+# ERT_SPEC_GFLOPS 5000
+
+
+
+# === Compilation Settings ===
+
+# Compiler to use (GCC, Intel, or Clang).
+
+ERT_CC gcc
+
+
+
+# Optimization flags for best performance.
+
+ERT_CFLAGS -O3 -march=native -std=c++17
+
+
+
+# === Linker settings ===
+
+ERT_LD gcc
+
+ERT_LDFLAGS -lstdc++ -static-libstdc++
+
+ERT_LDLIBS -lstdc++
+
+
+
+# === ERT Microkernel Settings ===
+
+# Driver and kernel selection.
+
+ERT_DRIVER driver1
+
+ERT_KERNEL kernel1
+
+
+
+# FLOPs per computational element (default: double precision).
+
+ERT_FLOPS 1,2,4,8,16
+
+
+
+# Data alignment in bits (typically cache-line size).
+
+ERT_ALIGN 64
+
+
+
+# === Parallelism Settings (Set to Serial Mode) ===
+
+# ENABLE MPI, OpenMP, and GPU offloadinge
+ERT_MPI True
+
+ERT_MPI_CFLAGS -I/usr/include/mpi
+
+ERT_MPI_LDFLAGS -lmpi
+
+
+
+ERT_OPENMP True
+
+ERT_OPENMP_CFLAGS -fopenmp
+
+ERT_OPENMP_LDFLAGS -fopenmp
+
+
+# === Execution Settings ===
+
+# Command to execute the benchmark.
+
+ERT_RUN export OMP_NUM_THREADS=ERT_OPENMP_THREADS; mpirun -np ERT_MPI_PROCS ERT_CODE
+
+ERT_PROCS_THREADS 1-8
+
+ERT_MPI_PROCS 1,2,4,8
+
+ERT_OPENMP_THREADS 1,2,4,8
+
+
+# === Experiment Settings ===
+
+# Number of times to repeat experiments for statistical consistency.
+
+ERT_NUM_EXPERIMENTS 3
+
+
+
+# Maximum memory usage (in bytes).
+
+ERT_MEMORY_MAX 1073741824
+
+
+
+# Minimum working set size in double precision values.
+
+ERT_WORKING_SET_MIN 128
+
+
+
+# Minimum number of trials to run for each case.
+
+ERT_TRIALS_MIN 10
+
+
+
+# === Output and Post-processing ===
+
+# Use GNUplot for visualization.
+
+ERT_GNUPLOT gnuplot

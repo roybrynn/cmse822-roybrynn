@@ -1,4 +1,11 @@
-// Example: problems/SodShockTube.cpp
+/**
+ * @file SodShockTube.cpp
+ * @brief Implementation of the SodShockTube problem for the Agoge application.
+ *
+ * This file implements the SodShockTube class methods to initialize a 
+ * shock tube problem and register its parameters.
+ */
+
 #include "SodShockTube.hpp"
 
 #include <cmath>
@@ -7,6 +14,11 @@
 namespace agoge {
 namespace problems {
 
+/**
+ * @brief Registers the parameters for the Sod Shock Tube problem.
+ *
+ * @param params The parameter system to register the parameters with.
+ */
 void SodShockTube::registerParameters(ParameterSystem &params) const {
     std::string prefix = name() + ".";
 
@@ -18,6 +30,12 @@ void SodShockTube::registerParameters(ParameterSystem &params) const {
     params.addDefault(prefix + "gamma", "1.4");
 }
 
+/**
+ * @brief Initializes the field for the Sod Shock Tube problem.
+ *
+ * @param Q The field to initialize.
+ * @param params The parameter system to use for initialization.
+ */
 void SodShockTube::initialize(Field3D &Q, const ParameterSystem &params) {
     std::string prefix = name() + ".";
 

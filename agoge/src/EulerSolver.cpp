@@ -1,3 +1,11 @@
+/**
+ * @file EulerSolver.cpp
+ * @brief Implementation of Euler solver routines for the Agoge application.
+ *
+ * This file contains functions to compute numerical fluxes, update solution
+ * using RK2 time stepping, and compute the time step.
+ */
+
 #include "EulerSolver.hpp"
 
 #include <algorithm>
@@ -7,6 +15,7 @@
 
 #include "Config.hpp"
 #include "Field3d.hpp"
+#include "ParameterSystem.hpp"
 #include "PerformanceMonitor.hpp"
 
 namespace agoge {
@@ -19,17 +28,14 @@ namespace euler {
 static inline double pressure(double rho, double rhou, double rhov, double rhow,
                               double E) {
     double gamma = config::gamma_gas;
-    if (rho < 1e-14) return 0.0;
     double u = rhou / rho, v = rhov / rho, w = rhow / rho;
     double kinetic = 0.5 * rho * (u * u + v * v + w * w);
     double p = (gamma - 1.0) * (E - kinetic);
-    if (p < 0.0) p = 0.0;
     return p;
 }
 
 static inline double waveSpeed(double rho, double rhou, double rhov,
                                double rhow, double E) {
-    if (rho < 1e-14) return 0.0;
     double u = rhou / rho, v = rhov / rho, w = rhow / rho;
     double speed = std::sqrt(u * u + v * v + w * w);
     double p = pressure(rho, rhou, rhov, rhow, E);
@@ -38,282 +44,505 @@ static inline double waveSpeed(double rho, double rhou, double rhov,
     return (speed + a);
 }
 
+/// @brief Computes the minmod limited slope
+/// @param a First slope
+/// @param b Second slope
+/// @return Limited slope using minmod limiter
+static inline double minmod(double a, double b) {
+    if (a * b <= 0.0) return 0.0;
+    return (std::abs(a) < std::abs(b)) ? a : b;
+}
+
+/// @brief Computes the minmod limited slope of three values
+/// @param a First slope
+/// @param b Second slope
+/// @param c Third slope
+/// @return Limited slope using minmod limiter
+static inline double minmod(double a, double b, double c) {
+    return minmod(a, minmod(b, c));
+}
+
 static inline std::array<double, 5> fluxX(double r, double ru, double rv,
                                           double rw, double E) {
     double p = pressure(r, ru, rv, rw, E);
-    double u = (r > 1e-14) ? (ru / r) : 0.0;
+    double u = (ru / r);
     return {ru, ru * u + p, ru * (rv / r), ru * (rw / r), (E + p) * u};
 }
 static inline std::array<double, 5> fluxY(double r, double ru, double rv,
                                           double rw, double E) {
     double p = pressure(r, ru, rv, rw, E);
-    double v = (r > 1e-14) ? (rv / r) : 0.0;
+    double v = (rv / r);
     return {rv, rv * (ru / r), rv * v + p, rv * (rw / r), (E + p) * v};
 }
 static inline std::array<double, 5> fluxZ(double r, double ru, double rv,
                                           double rw, double E) {
     double p = pressure(r, ru, rv, rw, E);
-    double w = (r > 1e-14) ? (rw / r) : 0.0;
+    double w = (rw / r);
     return {rw, rw * (ru / r), rw * (rv / r), rw * w + p, (E + p) * w};
 }
 
-static inline double minmod(double a, double b) {
-    if (a * b <= 0.0) return 0.0;
-    double absa = std::fabs(a), absb = std::fabs(b);
-    return (a > 0.0) ? std::min(absa, absb) : -std::min(absa, absb);
+// Move computeFaceFlux here at namespace scope:
+template <typename FluxFunction>
+inline std::array<double, 5> computeFaceFlux(const std::array<double, 5> &UL,
+                                             const std::array<double, 5> &UR,
+                                             FluxFunction &&fluxFunc) {
+    double aL = waveSpeed(UL[0], UL[1], UL[2], UL[3], UL[4]);
+    double aR = waveSpeed(UR[0], UR[1], UR[2], UR[3], UR[4]);
+    double alpha = std::max(aL, aR);
+
+    auto fL = fluxFunc(UL[0], UL[1], UL[2], UL[3], UL[4]);
+    auto fR = fluxFunc(UR[0], UR[1], UR[2], UR[3], UR[4]);
+
+    std::array<double, 5> faceFlux;
+    for (auto v : {var::rho, var::rhou, var::rhov, var::rhow, var::E}) {
+        faceFlux[v] = 0.5 * (fL[v] + fR[v]) - 0.5 * alpha * (UR[v] - UL[v]);
+    }
+    return faceFlux;
 }
 
-/**
- * @brief computeGravityAccel from ghosted field. We'll do central difference.
- */
-static inline void computeGravityAccel(const Field3D &Q, int iG, int jG, int kG,
-                                       double &gx, double &gy, double &gz) {
-    // We'll do i-1 => iG-1, i+1 => iG+1, etc. We assume it is valid because
-    // ghost cells exist.
-    double dx = Q.dx, dy = Q.dy, dz = Q.dz;
+// Thread-local storage for slopes to avoid repeated allocations
+std::vector<double> slopesScratch(tileSize * Nflux, 0.0);
 
-    int cL = Q.interiorIndex(iG - 1, jG, kG);
-    int cR = Q.interiorIndex(iG + 1, jG, kG);
-    int cD = Q.interiorIndex(iG, jG - 1, kG);
-    int cU = Q.interiorIndex(iG, jG + 1, kG);
-    int cB = Q.interiorIndex(iG, jG, kG - 1);
-    int cF = Q.interiorIndex(iG, jG, kG + 1);
+template <typename FluxFunction>
+inline void performSweep(std::vector<double> &tileQ, std::vector<double> &tileL,
+                         int start1, int stop1, int start2, int stop2,
+                         int start3, int stop3, int N1, int N2,
+                         double delta_inv, std::vector<double> &fluxN,
+                         FluxFunction &&fluxFunc) {
+    auto indTile = [](int i1, int i2, int i3, int n1, int n2) {
+        return i1 + i2 * n1 + i3 * n1 * n2;
+    };
+    
+    // Compute slopes using minmod limiter
+    for (int i3 = start3; i3 < stop3; ++i3) {
+        for (int i2 = start2; i2 < stop2; ++i2) {
+#pragma omp simd
+            for (int i1 = start1 - 1; i1 <= stop1; ++i1) {
+                int cM = indTile(i1 - 1, i2, i3, N1, N2);
+                int c  = indTile(i1, i2, i3, N1, N2);
+                int cP = indTile(i1 + 1, i2, i3, N1, N2);
+                
+                for (auto v : {var::rho, var::rhou, var::rhov, var::rhow, var::E}) {
+                    double vm = tileQ[cM + v * tileSize];
+                    double v0 = tileQ[c + v * tileSize];
+                    double vp = tileQ[cP + v * tileSize];
+                    
+                    // Compute differences and limited slope
+                    double dL = v0 - vm;
+                    double dR = vp - v0;
+                    slopesScratch[c + v * tileSize] = minmod(dL, dR);
+                }
+            }
+        }
+    }
+    
+    //============================
+    // Compute fluxes at i-1/2 using higher-order reconstruction
+    for (int i3 = start3; i3 < stop3; ++i3) {
+        for (int i2 = start2; i2 < stop2; ++i2) {
+            for (int i1 = start1; i1 <= stop1; ++i1) {
+                int cL = indTile(i1 - 1, i2, i3, N1, N2);
+                int cR = indTile(i1, i2, i3, N1, N2);
 
-    double phiL = Q.phi[cL];
-    double phiR = Q.phi[cR];
-    double phiD = Q.phi[cD];
-    double phiU = Q.phi[cU];
-    double phiB = Q.phi[cB];
-    double phiF = Q.phi[cF];
+                // Reconstruct left and right states at interface
+                std::array<double, 5> UL, UR;
+                for (auto v : {var::rho, var::rhou, var::rhov, var::rhow, var::E}) {
+                    // Right state of left cell (i-1)
+                    UL[v] = tileQ[cL + v * tileSize] + 0.5 * slopesScratch[cL + v * tileSize];
+                    
+                    // Left state of right cell (i)
+                    UR[v] = tileQ[cR + v * tileSize] - 0.5 * slopesScratch[cR + v * tileSize];
+                }
 
-    gx = -(phiR - phiL) / (2. * dx);
-    gy = -(phiU - phiD) / (2. * dy);
-    gz = -(phiF - phiB) / (2. * dz);
+                // Compute flux with reconstructed states
+                auto flux = computeFaceFlux(UL, UR, fluxFunc);
+                for (auto v : {var::rho, var::rhou, var::rhov, var::rhow, var::E}) {
+                    fluxN[cR + v * tileSize] = flux[v];
+                }
+            }
+        }
+    }
+    
+    // now accumulate flux differences for interior cells
+    for (int i3 = start3; i3 < stop3; ++i3) {
+        for (int i2 = start2; i2 < stop2; ++i2) {
+#pragma omp simd
+            for (int i1 = start1; i1 < stop1; ++i1) {
+                int cP = indTile(i1 + 1, i2, i3, N1, N2);
+                int cM = indTile(i1, i2, i3, N1, N2);
+
+                for (auto v : {var::rho, var::rhou, var::rhov, var::rhow, var::E}) {
+                    auto FP = fluxN[cP + v * tileSize];
+                    auto FM = fluxN[cM + v * tileSize];
+                    tileL[cM + v * tileSize] -= (FP - FM) * delta_inv;
+                }
+            }
+        }
+    }
+}
+
+/// @brief Performs a swap of first and second indices (X-Y) of 3D array
+/// @param src Array of 5 components (fluid state variables)
+/// @param n1 X dimension size
+/// @param n2 Y dimension size
+/// @param n3 Z dimension size
+inline void transpose12(std::vector<double> &src, int n1, int n2, int n3) {
+    // Create a complete copy of the source data to work with
+    const std::vector<double> copy = src;
+
+    for (int n = 0; n < Nflux; ++n) {
+        // Process all planes
+        for (int i3 = 0; i3 < n3; ++i3) {
+            for (int i2 = 0; i2 < n2; ++i2) {
+#pragma omp simd
+                for (int i1 = 0; i1 < n1; ++i1) {
+                    // Original index (i1, i2, i3)
+                    int srcIdx = i1 + i2 * n1 + i3 * (n1 * n2);
+
+                    // Transposed index (i2, i1, i3) - swap dimensions 1
+                    // and 2
+                    int dstIdx = i2 + i1 * n2 + i3 * (n1 * n2);
+
+                    src[dstIdx + n * tileSize] = copy[srcIdx + n * tileSize];
+                }
+            }
+        }
+    }
+}
+
+/// @brief Performs a swap of first and third indices (X-Z) of 3D array
+/// @param src Array of 5 components (fluid state variables)
+/// @param n1 X dimension size
+/// @param n2 Y dimension size
+/// @param n3 Z dimension size
+inline void transpose13(std::vector<double> &src, int n1, int n2, int n3) {
+    // Create a complete copy of the source data
+    std::vector<double> copy = src;
+
+    // Process each component separately
+    for (int n = 0; n < Nflux; ++n) {
+        for (int i2 = 0; i2 < n2; ++i2) {
+            for (int i1 = 0; i1 < n1; ++i1) {
+#pragma clang loop vectorize(enable) interleave(enable)
+                for (int i3 = 0; i3 < n3; ++i3) {
+                    // Original index (i1, i2, i3)
+                    int srcIdx = i1 + i2 * n1 + i3 * (n1 * n2);
+
+                    // Transposed index (i3, i2, i1)
+                    int dstIdx = i3 + i2 * n3 + i1 * (n3 * n2);
+
+                    src[dstIdx + n * tileSize] = copy[srcIdx + n * tileSize];
+                }
+            }
+        }
+    }
 }
 
 //=====================================================
 // computeL: 2D or 3D split approach with ghost cells
 //=====================================================
-void computeL(const Field3D &Q, Field3D &LQ, const Field3D *gravField) {
+
+/**
+ * @brief Compute the residual fluxes over the domain.
+ *
+ * @param Q The current field.
+ * @param LQ The computed residual flux.
+ * @param gravField Optional pointer to a gravity field.
+ */
+void computeL(const Field3D &Q, Field3D &LQ) {
     agoge::PerformanceMonitor::instance().startTimer("computeL");
 
-    // 1) We first apply BCs to Q so that all ghost zones are valid
-    const_cast<Field3D &>(Q).applyBCs();  // if Q is const, we can cast away or
-                                          // applyBCs might be logically const
-
-    // 2) Clear LQ arrays
+    // Initialize LQ arrays to zero
     std::fill(LQ.rho.begin(), LQ.rho.end(), 0.0);
     std::fill(LQ.rhou.begin(), LQ.rhou.end(), 0.0);
     std::fill(LQ.rhov.begin(), LQ.rhov.end(), 0.0);
     std::fill(LQ.rhow.begin(), LQ.rhow.end(), 0.0);
     std::fill(LQ.E.begin(), LQ.E.end(), 0.0);
-    std::fill(LQ.phi.begin(), LQ.phi.end(), 0.0);
 
-    // We'll do dimensional splitting in x,y,z.
-    // We'll define Nx= Q.Nx, etc.
-    int nx = Q.Nx;
-    int ny = Q.Ny;
-    int nz = Q.Nz;
-    double dx = Q.dx, dy = Q.dy, dz = Q.dz;
+    const int nx = Q.Nx;
+    const int ny = Q.Ny;
+    const int nz = Q.Nz;
+    const double dx = Q.dx, dy = Q.dy, dz = Q.dz;
+    const double dx_inv = 1.0 / dx, dy_inv = 1.0 / dy, dz_inv = 1.0 / dz;
 
-    // We'll define flux arrays for each pass, update LQ with - (dF/dx)
-    // for x-sweep, then y-sweep, then z-sweep.
+    // Setup the tiles for update.
+    // Tiles will always be cubic.
+    const int nTileX = (Q.Nx + Ntile - 1) / Ntile;
+    const int nTileY = (Q.Ny + Ntile - 1) / Ntile;
+    const int nTileZ = (Q.Nz + Ntile - 1) / Ntile;
 
-    //============================
-    // Helper function to gather {rho,rhou,rhov,rhow,E} from Q:
-    auto getU = [&](int idx) {
-        return std::array<double, 5>{Q.rho[idx], Q.rhou[idx], Q.rhov[idx],
-                                     Q.rhow[idx], Q.E[idx]};
+    // std::cout << "Tile sizes: " << nTileX << " " << nTileY << " " << nTileZ
+    //           << std::endl;
+    // And storage for the tile data and deltas.
+    std::vector<double> tileQ(tileSize * Nflux);
+    std::vector<double> tileL(tileSize * Nflux);
+    std::vector<double> tilePhi(tileSize);
+
+    // Begin processing tiles. We will perform X- Y- Z-sweeps together
+    // Indexing here will be global, so we need to adjust for the ghost cells.
+    // But we must account for the fact that there is overlap of ghost cells.
+    for (int tz = 0; tz < nTileZ; ++tz) {
+        const int zStart = tz * Ntile;
+        const int zExtent = std::min(NtileGhost, Q.NzGhost - zStart);
+        for (int ty = 0; ty < nTileY; ++ty) {
+            const int yStart = ty * Ntile;
+            const int yExtent = std::min(NtileGhost, Q.NyGhost - yStart);
+            for (int tx = 0; tx < nTileX; ++tx) {
+                const int xStart = tx * Ntile;
+                const int xExtent = std::min(NtileGhost, Q.NxGhost - xStart);
+
+                // std::cout << "Tile: " << tx << " " << ty << " " << tz
+                //           << std::endl;
+                // std::cout << "Tile extent: " << xExtent << " " << yExtent <<
+                // " "
+                //           << zExtent << std::endl;
+                // std::cout << "Tile start: " << xStart << " " << yStart << " "
+                //           << zStart << std::endl;
+                // Copy data from Q to tileQ
+                // following i,j,k reference the _tile_ frame
+                for (int k = 0; k < zExtent; ++k) {
+                    for (int j = 0; j < yExtent; ++j) {
+                        for (int i = 0; i < xExtent; ++i) {
+                            // shift indices to _Field_ global frame
+                            int idx =
+                                Q.index(i + xStart, j + yStart, k + zStart);
+                            int idxTile =
+                                i + j * xExtent + k * xExtent * yExtent;
+                            tileQ[idxTile + var::rho * tileSize] = Q.rho[idx];
+                            tileQ[idxTile + var::rhou * tileSize] = Q.rhou[idx];
+                            tileQ[idxTile + var::rhov * tileSize] = Q.rhov[idx];
+                            tileQ[idxTile + var::rhow * tileSize] = Q.rhow[idx];
+                            tileQ[idxTile + var::E * tileSize] = Q.E[idx];
+                            tilePhi[idxTile] =
+                                Q.phi[idx];  // Store phi separately
+                        }
+                    }
+                }
+                computeLtile(tileQ, tileL, xExtent, yExtent, zExtent, dx_inv,
+                             dy_inv, dz_inv, tilePhi);
+                // Copy data from tileL to LQ
+                for (int k = Nghost; k < zExtent - Nghost; ++k) {
+                    for (int j = Nghost; j < yExtent - Nghost; ++j) {
+                        for (int i = Nghost; i < xExtent - Nghost; ++i) {
+                            int idx =
+                                Q.index(i + xStart, j + yStart, k + zStart);
+                            int idxTile =
+                                i + j * xExtent + k * xExtent * yExtent;
+                            LQ.rho[idx] += tileL[idxTile + var::rho * tileSize];
+                            LQ.rhou[idx] +=
+                                tileL[idxTile + var::rhou * tileSize];
+                            LQ.rhov[idx] +=
+                                tileL[idxTile + var::rhov * tileSize];
+                            LQ.rhow[idx] +=
+                                tileL[idxTile + var::rhow * tileSize];
+                            LQ.E[idx] += tileL[idxTile + var::E * tileSize];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    agoge::PerformanceMonitor::instance().stopTimer("computeL");
+}
+
+/// @brief Computes the 3D flux divergence term for the compressible Euler
+/// equations in a single tile
+/// @param tileQ Vector containing tile state variables (density, momentum,
+/// energy)
+/// @param tileL Vector containing computed residual fluxes for the tile
+/// @param xExtent Extent of tile in x-direction
+/// @param yExtent Extent of tile in y-direction
+/// @param zExtent Extent of tile in z-direction
+/// @param dx_inv Inverse of grid spacing in x-direction
+/// @param dy_inv Inverse of grid spacing in y-direction
+/// @param dz_inv Inverse of grid spacing in z-direction
+/// @param tilePhi Vector containing gravitational potential in the tile
+void computeLtile(std::vector<double> &tileQ, std::vector<double> &tileL,
+                  int xExtent, int yExtent, int zExtent, double dx_inv,
+                  double dy_inv, double dz_inv, std::vector<double> &tilePhi) {
+    // clear the tileL
+    tileL.assign(tileSize * Nflux, 0.0);
+
+    auto indTile = [](int i1, int i2, int i3, int n1, int n2) {
+        return i1 + i2 * n1 + i3 * n1 * n2;
     };
 
+    // Helper for accessing component values in the linearized vectors
+    auto getQ = [&tileQ](int n, int idx) -> double & {
+        return tileQ[idx + n * tileSize];
+    };
+
+    auto getL = [&tileL](int n, int idx) -> double & {
+        return tileL[idx + n * tileSize];
+    };
+
+    // Start with adding gravity for interior cells before any transposes
+    for (int k = Nghost; k < zExtent - Nghost; k++) {
+        for (int j = Nghost; j < yExtent - Nghost; j++) {
+            for (int i = Nghost; i < xExtent - Nghost; i++) {
+                int c = indTile(i, j, k, xExtent, yExtent);
+                int cL = indTile(i - 1, j, k, xExtent, yExtent);
+                int cR = indTile(i + 1, j, k, xExtent, yExtent);
+                int cD = indTile(i, j - 1, k, xExtent, yExtent);
+                int cU = indTile(i, j + 1, k, xExtent, yExtent);
+                int cB = indTile(i, j, k - 1, xExtent, yExtent);
+                int cF = indTile(i, j, k + 1, xExtent, yExtent);
+
+                double gx = -(tilePhi[cR] - tilePhi[cL]) * (0.5 * dx_inv);
+                double gy = -(tilePhi[cU] - tilePhi[cD]) * (0.5 * dy_inv);
+                double gz = -(tilePhi[cF] - tilePhi[cB]) * (0.5 * dz_inv);
+
+                double rho = getQ(var::rho, c);
+                double rhou = getQ(var::rhou, c);
+                double rhov = getQ(var::rhov, c);
+                double rhow = getQ(var::rhow, c);
+
+                getL(var::rhou, c) = rho * gx;
+                getL(var::rhov, c) = rho * gy;
+                getL(var::rhow, c) = rho * gz;
+                getL(var::E, c) = rhou * gx + rhov * gy + rhow * gz;
+            }
+        }
+    }
+
+    // storage for normal-direction fluxes
+    std::vector<double> fluxN(tileSize * Nflux);
+
+    // starting and stopping indices
+    int startX = Nghost;
+    int stopX = xExtent - Nghost;
+    int startY = Nghost;
+    int stopY = yExtent - Nghost;
+    int startZ = Nghost;
+    int stopZ = zExtent - Nghost;
+
+    agoge::PerformanceMonitor::instance().startTimer("computeLtileX");
     //============================
     // Step 1: X-sweep
-    // define flux array Fx => size (nx+1)*ny*nz (in the interior sense),
-    // but we store them in a single vector of length (nx+1)*ny*nz, each flux is
-    // a 5-vector.
-
-    std::vector<std::array<double, 5>> Fx((nx + 1) * ny * nz);
-
-    // function to index flux face in x
-    auto fxIndex = [&](int iF, int jIn, int kIn) {
-        // iF in [0..nx], jIn in [0..ny-1], kIn in [0..nz-1]
-        return iF + (nx + 1) * (jIn + ny * kIn);
-    };
-
     // compute fluxes at i-1/2 for iF in [0..nx],
-    for (int k = 0; k < nz; k++) {
-        for (int j = 0; j < ny; j++) {
-            for (int i = 0; i <= nx; i++) {
-                // left cell is iF-1, right cell is iF, in interior coords
-                // if iF=0 => left cell is iF-1= -1 => that's in ghost region
-                // but Q has ghost cells => so let iL= iF-1.
-
-                int cL = Q.interiorIndex(i - 1, j, k);
-                int cR = Q.interiorIndex(i, j, k);
-
-                // slope-limited states
-                auto UL = getU(cL);
-                auto UR = getU(cR);
-
-                // we can do minmod slope from neighbors cL-1, cL+1, etc., or do
-                // simpler approach for brevity, let's do 1st-order
-
-                double aL = waveSpeed(UL[0], UL[1], UL[2], UL[3], UL[4]);
-                double aR = waveSpeed(UR[0], UR[1], UR[2], UR[3], UR[4]);
-                double alpha = std::max(aL, aR);
-
-                auto fL = fluxX(UL[0], UL[1], UL[2], UL[3], UL[4]);
-                auto fR = fluxX(UR[0], UR[1], UR[2], UR[3], UR[4]);
-
-                std::array<double, 5> faceFlux;
-                for (int n = 0; n < 5; n++) {
-                    faceFlux[n] =
-                        0.5 * (fL[n] + fR[n]) - 0.5 * alpha * (UR[n] - UL[n]);
-                }
-
-                Fx[fxIndex(i, j, k)] = faceFlux;
-            }
-        }
-    }
-
-    // now accumulate flux differences for interior cells
-    for (int kIn = 0; kIn < nz; kIn++) {
-        for (int jIn = 0; jIn < ny; jIn++) {
-            for (int iIn = 0; iIn < nx; iIn++) {
-                int iG = iIn + Q.nghost;
-                int jG = jIn + Q.nghost;
-                int kG = kIn + Q.nghost;
-                int c = Q.index(iG, jG, kG);
-
-                auto FL = Fx[fxIndex(iIn, jIn, kIn)];      // flux at left face
-                auto FR = Fx[fxIndex(iIn + 1, jIn, kIn)];  // flux at right face
-
-                LQ.rho[c] -= (FR[0] - FL[0]) / dx;
-                LQ.rhou[c] -= (FR[1] - FL[1]) / dx;
-                LQ.rhov[c] -= (FR[2] - FL[2]) / dx;
-                LQ.rhow[c] -= (FR[3] - FL[3]) / dx;
-                LQ.E[c] -= (FR[4] - FL[4]) / dx;
-            }
-        }
-    }
+    //============================
+    performSweep(tileQ, tileL, startX, stopX, startY, stopY, startZ, stopZ,
+                 xExtent, yExtent, dx_inv, fluxN, fluxX);
+    agoge::PerformanceMonitor::instance().stopTimer("computeLtileX");
 
     //===========================
     // Step2: Y-sweep
-    // similarly define (nxGhost * (ny+1)* nzGhost) flux array or just (nx *
-    // (ny+1)* nz) if only interior for brevity, I show a direct approach...
-    // ...
-    // (omitted for brevity, same pattern as x-sweep)
+    // compute fluxes at j-1/2 for jF in [0..ny],
     //===========================
+    agoge::PerformanceMonitor::instance().startTimer("transposeY");
+    // First, we need to transpose the data; order will be YXZ
+    transpose12(tileQ, xExtent, yExtent, zExtent);
+    // Now transpose the deltas
+    transpose12(tileL, xExtent, yExtent, zExtent);
+    agoge::PerformanceMonitor::instance().stopTimer("transposeY");
+
+    agoge::PerformanceMonitor::instance().startTimer("computeLtileY");
+    performSweep(tileQ, tileL, startY, stopY, startX, stopX, startZ, stopZ,
+                 yExtent, xExtent, dy_inv, fluxN, fluxY);
+    agoge::PerformanceMonitor::instance().stopTimer("computeLtileY");
 
     //===========================
     // Step3: Z-sweep
-    // same pattern
+    // compute fluxes at k-1/2 for kF in [0..nz],
     //===========================
 
-    // Then add gravity for interior cells
-    if (gravField) {
-        // applyBCs to gravField as well if needed
-        // const_cast<Field3D *>(gravField)->applyBCs();
-        for (int k = 0; k < nz; k++) {
-            for (int j = 0; j < ny; j++) {
-                for (int i = 0; i < nx; i++) {
-                    int c = Q.interiorIndex(i, j, k);
+    agoge::PerformanceMonitor::instance().startTimer("transposeZ");
+    // First, we need to transpose the data; order will be ZXY
+    transpose13(tileQ, yExtent, xExtent, zExtent);
+    // transpose the deltas
+    transpose13(tileL, yExtent, xExtent, zExtent);
+    agoge::PerformanceMonitor::instance().stopTimer("transposeZ");
 
-                    double r = Q.rho[c];
-                    if (r < 1e-14) continue;
+    agoge::PerformanceMonitor::instance().startTimer("computeLtileZ");
+    performSweep(tileQ, tileL, startZ, stopZ, startX, stopX, startY, stopY,
+                 zExtent, xExtent, dz_inv, fluxN, fluxZ);
+    agoge::PerformanceMonitor::instance().stopTimer("computeLtileZ");
 
-                    double u = Q.rhou[c] / r, v = Q.rhov[c] / r,
-                           w = Q.rhow[c] / r;
-                    double gx = 0, gy = 0, gz = 0;
-                    computeGravityAccel(*gravField, i, j, k, gx, gy, gz);
-
-                    LQ.rhou[c] += r * gx;
-                    LQ.rhov[c] += r * gy;
-                    LQ.rhow[c] += r * gz;
-                    LQ.E[c] += r * (u * gx + v * gy + w * gz);
-                }
-            }
-        }
-    }
-
-    // Finally artificial viscosity
-    // applyArtificialViscosity(Q, LQ, 0.1);
-
-    agoge::PerformanceMonitor::instance().stopTimer("computeL");
+    //===========================
+    // Step4: Transpose back to original order
+    // transpose the deltas ZXY -> YXZ -> XYZ
+    //===========================
+    agoge::PerformanceMonitor::instance().startTimer("transposeX");
+    transpose13(tileL, zExtent, xExtent, yExtent);
+    transpose12(tileL, yExtent, xExtent, zExtent);
+    agoge::PerformanceMonitor::instance().stopTimer("transposeX");
 }
 
 //=====================================================
 // runRK2 remains the same, but we do Q.applyBCs()
 // inside computeL each step, so no changes needed here
 //=====================================================
+
+/**
+ * @brief Advances the solution using a second-order Runge-Kutta scheme.
+ *
+ * @param Q The field to update.
+ * @param dt The time-step.
+ */
 void runRK2(Field3D &Q, double dt) {
     // create Qtemp, LQ etc. sized with same ghost
-    Field3D Qtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
-    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
-    Field3D LQtemp(Q.Nx, Q.Ny, Q.Nz, Q.bbox, Q.nghost);
+    Field3D Qtemp = Q;
+    Field3D LQ(Q.Nx, Q.Ny, Q.Nz, Q.bbox);
 
-    // copy BC flags
-    Qtemp.bc_xmin = Q.bc_xmin;
-    Qtemp.bc_xmax = Q.bc_xmax;
-    Qtemp.bc_ymin = Q.bc_ymin;
-    Qtemp.bc_ymax = Q.bc_ymax;
-    Qtemp.bc_zmin = Q.bc_zmin;
-    Qtemp.bc_zmax = Q.bc_zmax;
+    // array of references to the fields in Q
+    std::array<std::reference_wrapper<std::vector<double>>, 5> fieldsQ = {
+        std::ref(Q.rho), std::ref(Q.rhou), std::ref(Q.rhov), std::ref(Q.rhow),
+        std::ref(Q.E)};
 
-    LQ.bc_xmin = Q.bc_xmin;
-    LQ.bc_xmax = Q.bc_xmax;
-    LQ.bc_ymin = Q.bc_ymin;
-    LQ.bc_ymax = Q.bc_ymax;
-    LQ.bc_zmin = Q.bc_zmin;
-    LQ.bc_zmax = Q.bc_zmax;
+    // array of references to the fields in Qtemp
+    std::array<std::reference_wrapper<std::vector<double>>, 5> fieldsQtemp = {
+        std::ref(Qtemp.rho), std::ref(Qtemp.rhou), std::ref(Qtemp.rhov),
+        std::ref(Qtemp.rhow), std::ref(Qtemp.E)};
 
-    LQtemp.bc_xmin = Q.bc_xmin;
-    LQtemp.bc_xmax = Q.bc_xmax;
-    LQtemp.bc_ymin = Q.bc_ymin;
-    LQtemp.bc_ymax = Q.bc_ymax;
-    LQtemp.bc_zmin = Q.bc_zmin;
-    LQtemp.bc_zmax = Q.bc_zmax;
-
-    // copy data from Q => Qtemp
-    Qtemp.rho = Q.rho;
-    Qtemp.rhou = Q.rhou;
-    Qtemp.rhov = Q.rhov;
-    Qtemp.rhow = Q.rhow;
-    Qtemp.E = Q.E;
-    Qtemp.phi = Q.phi;
+    // array of references to the fields in LQ
+    std::array<std::reference_wrapper<std::vector<double>>, 5> fieldsLQ = {
+        std::ref(LQ.rho), std::ref(LQ.rhou), std::ref(LQ.rhov),
+        std::ref(LQ.rhow), std::ref(LQ.E)};
 
     // Stage 1
-    computeL(Q, LQ, &Q);  // calls Q.applyBCs() inside
-    // do the partial update over the entire domain (ghost included, but real
-    // update only needed interior)
-    size_t tot = Q.rho.size();
-    for (size_t n = 0; n < tot; n++) {
-        double newRho = Q.rho[n] + dt * LQ.rho[n];
-        double newE = Q.E[n] + dt * LQ.E[n];
-        if (newRho < 1e-14) newRho = 1e-14;
-        if (newE < 1e-14) newE = 1e-14;
+    Q.applyBCs();
+    computeL(Q, LQ);  // calls Q.applyBCs() inside
+    // do the partial update over the entire domain (ghost included,
+    // but real update only needed interior)
+    agoge::PerformanceMonitor::instance().startTimer("update1");
+    for (int var = 0; var < Nflux; ++var) {
+        auto &thisQ = fieldsQ[var].get();
+        auto &thisQtemp = fieldsQtemp[var].get();
+        auto &thisLQ = fieldsLQ[var].get();
 
-        Qtemp.rho[n] = newRho;
-        Qtemp.rhou[n] = Q.rhou[n] + dt * LQ.rhou[n];
-        Qtemp.rhov[n] = Q.rhov[n] + dt * LQ.rhov[n];
-        Qtemp.rhow[n] = Q.rhow[n] + dt * LQ.rhow[n];
-        Qtemp.E[n] = newE;
+        for (int k = 0; k < Q.Nz; k++) {
+            for (int j = 0; j < Q.Ny; ++j) {
+                for (int i = 0; i < Q.Nx; ++i) {
+                    int n = Q.interiorIndex(i, j, k);
+                    thisQtemp[n] =
+                        std::max(thisQ[n] + dt * thisLQ[n], floor[var]);
+                }
+            }
+        }
     }
+    agoge::PerformanceMonitor::instance().stopTimer("update1");
 
     // Stage 2
-    computeL(Qtemp, LQtemp, &Qtemp);
-    for (size_t n = 0; n < tot; n++) {
-        double newRho = 0.5 * (Q.rho[n] + Qtemp.rho[n] + dt * LQtemp.rho[n]);
-        double newE = 0.5 * (Q.E[n] + Qtemp.E[n] + dt * LQtemp.E[n]);
-        if (newRho < 1e-14) newRho = 1e-14;
-        if (newE < 1e-14) newE = 1e-14;
+    Qtemp.applyBCs();
+    computeL(Qtemp, LQ);
+    agoge::PerformanceMonitor::instance().startTimer("update2");
+    for (int var = 0; var < Nflux; ++var) {
+        auto &thisQ = fieldsQ[var].get();
+        auto &thisQtemp = fieldsQtemp[var].get();
+        auto &thisLQ = fieldsLQ[var].get();
 
-        Q.rho[n] = newRho;
-        Q.rhou[n] = 0.5 * (Q.rhou[n] + Qtemp.rhou[n] + dt * LQtemp.rhou[n]);
-        Q.rhov[n] = 0.5 * (Q.rhov[n] + Qtemp.rhov[n] + dt * LQtemp.rhov[n]);
-        Q.rhow[n] = 0.5 * (Q.rhow[n] + Qtemp.rhow[n] + dt * LQtemp.rhow[n]);
-        Q.E[n] = newE;
+        for (int k = 0; k < Q.Nz; k++) {
+            for (int j = 0; j < Q.Ny; ++j) {
+                for (int i = 0; i < Q.Nx; ++i) {
+                    int n = Q.interiorIndex(i, j, k);
+                    thisQ[n] = std::max(
+                        0.5 * (thisQ[n] + thisQtemp[n] + dt * thisLQ[n]),
+                        floor[var]);
+                }
+            }
+        }
     }
+    agoge::PerformanceMonitor::instance().stopTimer("update2");
 }
 
 //=====================================================
@@ -321,6 +550,14 @@ void runRK2(Field3D &Q, double dt) {
 // We'll just do interior to avoid ghost.
 // It's simpler to skip boundary cells anyway.
 //=====================================================
+
+/**
+ * @brief Computes the time step based on the CFL condition.
+ *
+ * @param Q The current field.
+ * @param cfl The CFL number.
+ * @return double The computed time step.
+ */
 double computeTimeStep(const Field3D &Q, double cfl) {
     // we only compute max speed in interior
     int nx = Q.Nx;

@@ -1,7 +1,7 @@
 # === ERT Configuration File for MSU HPCC ===
 
 # Set where results should be stored (relative or absolute path).
-ERT_RESULTS ERT_Results
+ERT_RESULTS ERT_Results_MPI
 
 # Specify the theoretical peak values of the machine (if known).
 # This helps compare measured vs. theoretical performance.
@@ -10,15 +10,25 @@ ERT_RESULTS ERT_Results
 
 # === Compilation Settings ===
 # Compiler to use (GCC, Intel, or Clang).
-ERT_CC gcc
+ERT_CC mpicc
 
 # Optimization flags for best performance.
 ERT_CFLAGS -O3 -march=native -std=c++17
+ERT_MPI_CFLAGS -l/usr/include/mpi
+ERT_MPI_LDFLAGS -lmpi
+
+ERT_OPENMP_CFLAGS -fopenmp
+ERT_OPENMP_LDFLAGS -fopenmp
+ERT_OPENMP_THREADS 1
+
+ERT_MPI_PROCS 4
+
+ERT_PROCS_THREADS 1 
 
 # === Linker settings ===
-ERT_LD gcc
+ERT_LD mpicc
 ERT_LDFLAGS -lstdc++ -static-libstdc++
-ERT_LDLIBS -lstdc++
+ERT_LDLIBS -lstdc++ 
 
 # === ERT Microkernel Settings ===
 # Driver and kernel selection.
@@ -33,13 +43,13 @@ ERT_ALIGN 64
 
 # === Parallelism Settings (Set to Serial Mode) ===
 # Disable MPI, OpenMP, and GPU offloading.
-ERT_MPI False
-ERT_OPENMP False
+ERT_MPI True
+ERT_OPENMP True
 ERT_GPU False
 
 # === Execution Settings ===
 # Command to execute the benchmark.
-ERT_RUN ./ERT_CODE
+ERT_RUN export OMP_NUM_THREADS=ERT_OPENMP_THREADS; mpirun -np ERT_MPI_PROCS ERT_CODE
 
 # === Experiment Settings ===
 # Number of times to repeat experiments for statistical consistency.

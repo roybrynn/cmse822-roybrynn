@@ -4,7 +4,7 @@ nx: 1024
 ny: 1
 nz: 1
 cfl: 0.5
-sound_crossings: 0.3
+t_max: 0.5
 use_gravity: false
 problem_name: "sod"
 xmin: 0.0

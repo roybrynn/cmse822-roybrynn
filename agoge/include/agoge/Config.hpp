@@ -9,8 +9,15 @@
  * and whether self-gravity is enabled.
  */
 
+#ifndef AGOGE_NGHOST
+#define AGOGE_NGHOST 2
+#endif
+
 namespace agoge {
 namespace config {
+
+/// @brief Number of ghost cells for boundary conditions.
+constexpr int Ng = AGOGE_NGHOST;
 
 /**
  * @brief Ratio of specific heats for an ideal gas.

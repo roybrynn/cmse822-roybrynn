@@ -10,9 +10,7 @@
 #SBATCH --constraint=amd20  # Change this to test different architectures
 
 module purge
-module load GCC/12.3.0
-module load gnuplot
-module load Python/3.10.12-GCCcore-12.3.0-bare
+module load gnuplot 
 
 export REPO_DIR=~/cmse822/cmse822-codex-private
 cd $SLURM_SUBMIT_DIR
