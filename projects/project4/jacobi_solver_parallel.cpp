@@ -37,18 +37,19 @@ int main(int argc, char **argv) {
     while ((conv > TOLERANCE) && (iters < MAX_ITERS)) {
         ++iters;
 
-        // Compute new iteration - EDIT HERE
+        #pragma omp parallel for
         for (int i = 0; i < Ndim; ++i) {
-            xnew[i] = static_cast<TYPE>(0.0);
+            TYPE sum = TYPE{0.0};
             for (int j = 0; j < Ndim; ++j) {
                 if (i != j)
-                    xnew[i] += <INSERT YOUR CODE HERE>;
+                    sum += A[i*Ndim + j]*xold[j];
             }
-            xnew[i] = <INSERT YOUR CODE HERE>;
+            xnew[i] = (b[i] - sum) / A[i*Ndim +i];
         }
 
         // Compute convergence criterion (Euclidean norm of difference)
         conv = static_cast<TYPE>(0.0);
+        #pragma omp parallel for reduction(+: conv)
         for (int i = 0; i < Ndim; ++i) {
             TYPE tmp = xnew[i] - xold[i];
             conv += tmp * tmp;

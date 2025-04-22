@@ -13,11 +13,14 @@ int main() {
         a[i] = static_cast<double>(i);
         b[i] = 2.0f * static_cast<double>(i);
         res[i] = a[i] + b[i];
+        c[i] = 0.0;
     }
 
     // Add two vectors using a simple loop and measure time.
     auto start = std::chrono::high_resolution_clock::now();
-    #pragma omp parallel loop
+    #pragma omp target loop \
+            map(to: a_ptr[0:N], b_ptr[0:N]) \
+            map(from: c_ptr[0:N])
     for (int i = 0; i < N; ++i) {
         c[i] = a[i] + b[i];
     }
